@@ -1,0 +1,72 @@
+# Scripts de base de datos
+
+Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ejecutan desde PowerShell o pgAdmin y deben conservarse versionados en Git.
+
+## Orden de ejecucion
+
+| Orden | Archivo | Proposito |
+|---|---|---|
+| 1 | `00_create_database.sql` | Crea `nexuserpm` sin eliminar una base existente. |
+| 2 | `01_Create_tb_users.sql` | Crea usuarios, roles, estados e indice de correo. |
+| 3 | `02_Create_tb_clients.sql` | Crea clientes B2B y unicidad del NIT normalizado. |
+| 4 | `03_Create_tb_projects.sql` | Crea proyectos y sus relaciones con clientes y usuarios. |
+
+El administrador inicial no se inserta con SQL. Se crea mediante el script TypeScript del backend para generar el hash seguro:
+
+```powershell
+npm.cmd run seed:admin --prefix backend
+```
+
+Consulta [02_seed_admin.md](02_seed_admin.md) para los detalles.
+
+## Prerrequisitos
+
+- PostgreSQL local instalado y ejecutándose.
+- Usuario con permisos para crear bases y tablas.
+- `psql` disponible en el `PATH` o ejecución equivalente desde pgAdmin.
+- `backend/.env` configurado para `nexuserpm` antes de ejecutar el seed.
+
+## Ejecucion con PowerShell
+
+El primer script debe ejecutarse conectado a una base administrativa porque PostgreSQL no permite `CREATE DATABASE` dentro de una transacción normal:
+
+```powershell
+psql -U postgres -d postgres -f .\database\scripts\00_create_database.sql
+psql -U postgres -d nexuserpm -f .\database\scripts\01_Create_tb_users.sql
+psql -U postgres -d nexuserpm -f .\database\scripts\02_Create_tb_clients.sql
+psql -U postgres -d nexuserpm -f .\database\scripts\03_Create_tb_projects.sql
+npm.cmd run seed:admin --prefix backend
+```
+
+Si `psql` no se reconoce, usar la ruta completa al ejecutable instalado, por ejemplo:
+
+```powershell
+& "C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d postgres -f .\database\scripts\00_create_database.sql
+```
+
+La ruta y la version de PostgreSQL pueden variar.
+
+## Reinicio manual de desarrollo
+
+No se eliminan datos desde los scripts versionados. Para empezar desde cero, conectarse manualmente a `postgres` y ejecutar solo si se acepta perder la informacion local:
+
+```sql
+DROP DATABASE IF EXISTS nexuserpm WITH (FORCE);
+CREATE DATABASE nexuserpm;
+```
+
+Luego repetir el orden de ejecucion completo.
+
+## Convencion para nuevos scripts
+
+- Usar dos digitos iniciales y el siguiente numero disponible.
+- Describir la operacion y el objeto: `04_Create_ix_projects_status.sql`, `05_Alter_tb_clients.sql`.
+- No reutilizar numeros ni renombrar scripts ya compartidos.
+- Incluir comentarios sobre proposito, prerrequisitos y posibles efectos.
+- Usar PostgreSQL y restricciones justificadas: `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, `CHECK` e indices.
+- Evitar `DROP TABLE` y eliminaciones masivas.
+- No guardar contraseñas, tokens ni credenciales reales.
+- Mantener estructura y datos de prueba separados conceptualmente; cualquier dato de prueba debe identificarse claramente, por ejemplo `90_Insert_DatosPrueba.sql`.
+- No crear carpetas `migrations`, `seeds` u otras dentro de `database`.
+
+Las operaciones normales de clientes y proyectos se realizan por la API; no se crea un script SQL por cada alta, consulta, edicion o eliminacion.

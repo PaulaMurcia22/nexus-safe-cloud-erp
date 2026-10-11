@@ -1,0 +1,3 @@
+export type Role='ADMIN'|'MANAGEMENT'|'COMMERCIAL'|'FINANCE'|'IT_OPERATIONS'; export interface User{id:string;name:string;email:string;role:Role;status:'ACTIVE'|'INACTIVE'}
+export interface Client{id:string;legalName:string;nit:string;industry:string;contactName:string;contactPosition:string|null;contactEmail:string;contactPhone:string|null;city:string;address:string|null;status:'ACTIVE'|'INACTIVE'}
+export interface Project{id:string;code:string;name:string;description:string|null;customerId:string;customerName:string;serviceType:string;status:string;priority:string;responsibleLocation:string;startDate:string|null;estimatedEndDate:string|null;estimatedBudget:number|null;estimatedHours:number|null;progressPercentage:number}

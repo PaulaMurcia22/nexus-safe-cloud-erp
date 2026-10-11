@@ -1,0 +1,4 @@
+import type {RequestHandler} from 'express'; import * as repo from '../repositories/project.repository.js'; import {parse,projectSchema} from '../shared/validation.js';
+export const list:RequestHandler=async(req,res)=>res.json(await repo.list({customerId:typeof req.query.customerId==='string'?req.query.customerId:undefined,status:typeof req.query.status==='string'?req.query.status:undefined,location:typeof req.query.location==='string'?req.query.location:undefined}));
+export const create:RequestHandler=async(req,res)=>res.status(201).json(await repo.create(parse(projectSchema,req.body)));
+export const update:RequestHandler=async(req,res)=>{const p=await repo.update(String(req.params.id),parse(projectSchema,req.body));if(!p)return res.status(404).json({error:'Proyecto no encontrado.'});res.json(p);};

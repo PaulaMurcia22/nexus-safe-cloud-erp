@@ -1,0 +1,1 @@
+import {Navigate,useLocation} from 'react-router-dom'; import {useAuth} from './AuthContext'; export function RequireAuth({children}:{children:React.ReactNode}){const a=useAuth(),l=useLocation();if(a.loading)return <p className="muted">Cargando sesión...</p>;return a.user?<>{children}</>:<Navigate to="/login" state={{from:l.pathname}} replace/>}
