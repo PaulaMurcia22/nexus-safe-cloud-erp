@@ -4,7 +4,7 @@ import type {Role,User} from '../../types';
 import {Modal} from '../../components/Modal';
 import {Toast} from '../../components/Toast';
 
-const roles:Role[]=['ADMIN','MANAGEMENT','COMMERCIAL','FINANCE','IT_OPERATIONS'];
+const roles:Role[]=['ADMIN','MANAGEMENT','COMMERCIAL','FINANCE','IT_OPERATIONS','PMO','TECHNICIAN'];
 const pageSize=20;
 export function UsersPage(){
   const [items,setItems]=useState<User[]>([]),[editing,setEditing]=useState<User>(),[open,setOpen]=useState(false),[search,setSearch]=useState(''),[page,setPage]=useState(1),[total,setTotal]=useState(0),[error,setError]=useState(''),[toast,setToast]=useState('');

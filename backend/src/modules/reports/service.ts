@@ -1,0 +1,2 @@
+import ExcelJS from 'exceljs';import * as repo from './repository.js';
+export async function workbook(resource:'assets'|'findings'|'receivables'){const result=await repo.report(resource);const book=new ExcelJS.Workbook();const sheet=book.addWorksheet(resource);if(result.rows.length){sheet.columns=Object.keys(result.rows[0]).map((key)=>({header:key,key,width:Math.min(Math.max(key.length+4,16),34)}));sheet.addRows(result.rows);}sheet.views=[{state:'frozen',ySplit:1}];return book.xlsx.writeBuffer();}

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'; import type { RequestHandler } from 'express';
-export type Role='ADMIN'|'MANAGEMENT'|'COMMERCIAL'|'FINANCE'|'IT_OPERATIONS';
+export type Role='ADMIN'|'MANAGEMENT'|'COMMERCIAL'|'FINANCE'|'IT_OPERATIONS'|'PMO'|'TECHNICIAN';
 export interface AuthUser { id:string; name:string; email:string; role:Role; status:'ACTIVE'|'INACTIVE'; }
 const sessions=new Map<string,{user:AuthUser;expires:number}>();
 export function hashPassword(password:string){return new Promise<string>((resolve,reject)=>{const salt=crypto.randomBytes(16).toString('hex');crypto.scrypt(password,salt,64,(err,key)=>err?reject(err):resolve(`${salt}:${key.toString('hex')}`));});}
