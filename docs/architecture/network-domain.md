@@ -1,8 +1,10 @@
 # Dominio de operaciones de red
 
+> Parcialmente superado por ADR-0001 (Opción C, servicio gestionado). El inventario real es de un centro de salud y no contiene una relación verificable con cliente o sitio. Para el ejercicio académico se asumirá que es el cliente gestionado de Nexus Safe-Cloud; la asignación se hará explícita como dato sintético/auditado, nunca como una conclusión del archivo fuente. La fase vigente amplía este modelo con sitio de cliente, VLAN explícitas, catálogo de señales y entidades del flujo vertical.
+
 ## Alcance y propiedad
 
-El inventario inicial procede de `data/Data_para_Proveedor_ERP.xlsx`. El archivo no prueba si los equipos pertenecen a Nexus Safe-Cloud o a un cliente, ni permite asignarlos a Medellín, Bogotá o un proyecto. Por eso `site_id`, `customer_id` y `project_id` quedan nulos hasta que una persona autorizada los complete. No se crean asignaciones ficticias.
+El inventario inicial procede de `data/Data_para_Proveedor_ERP.xlsx`. El archivo no prueba si los equipos pertenecen a Nexus Safe-Cloud o a un cliente, ni permite asignarlos a una ciudad o proyecto. La decisión Opción C agrega el supuesto académico de que el centro de salud es un cliente gestionado; se registrará en un ADR y la asignación demo será sintética y auditable. La ciudad del sitio del cliente queda sin confirmar.
 
 `04_Create_network_domain.sql` crea catálogos, activos, IP/MAC, interfaces, enlaces, pools DHCP, controles, tecnologías de monitoreo, lotes e incidencias de importación, auditoría y definiciones de campos personalizados. `source_data` conserva los datos del origen. `extra` se reserva para extensión posterior.
 
@@ -35,4 +37,4 @@ El modo `--dry-run` analiza el libro y consulta las coincidencias para presentar
 
 ## Criterios de reconciliación
 
-La referencia inicial espera 76 activos: 47 computadores, 16 CCTV/IoT, 10 de infraestructura, 1 servidor, 1 dispositivo de energía y 1 WiredEndDevice; criticidad 5/5/66; 74 enlaces (11 críticos y 5 no funcionales); 148 interfaces; 17 pools y 8 tecnologías de monitoreo. La hoja de controles debe reconciliar 10 equipos de infraestructura. Un segundo import debe reportar cero inserciones. Diferencias se explican con incidencias, no se corrigen con datos inventados.
+La referencia espera 76 activos: 47 computadores, 16 CCTV/IoT, 10 de infraestructura, 1 servidor, 1 dispositivo de energía y 1 WiredEndDevice; criticidad 5/5/66; 74 enlaces (11 críticos); 147 filas de datos de interfaces; 17 pools y 8 tecnologías de monitoreo. Las cinco filas eCustomIOLink tienen funcionalidad en blanco y se tratan como desconocidas, no como fallos. La hoja de controles reconcilia 10 equipos de infraestructura. Un segundo import debe reportar cero inserciones. Diferencias se explican con incidencias, no se corrigen con datos inventados.

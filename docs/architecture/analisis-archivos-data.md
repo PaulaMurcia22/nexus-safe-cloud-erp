@@ -1,5 +1,7 @@
 # Análisis de los archivos Excel de Nexus Safe-Cloud ERP
 
+> **Parcialmente superado por ADR-0001.** Este análisis conserva el inventario histórico de archivos, pero la selección actual de fuentes es más restrictiva: solo `Data_para_Proveedor_ERP.xlsx` y `Equipos_Monitoreo_Red_5196.xlsx` son fuentes válidas. `Datos_PacketTracer.xlsx` y `captura_tcp-2_Grupo_Eventos_Temporales.xlsx` quedan **descartados**, no se importan ni se modelan. Sus descripciones y propuestas relacionadas se conservan aquí solo como historial y no forman parte del MVP Opción C.
+
 Fecha de análisis: 2026-10-11  
 Alcance: inspección de solo lectura de los cuatro archivos `.xlsx` ubicados directamente en `data/`.
 
@@ -78,7 +80,7 @@ Propósito probable: paquete técnico para un proveedor con inventario de infrae
 
 Campos importantes: `Serial`, `Nombre/Equipo`, `Modelo`, interfaces, enlaces, MAC, IP, VLAN y criticidad. Hay muchos vacíos legítimos: por ejemplo, no todos los equipos tienen IP de gestión, gateway, DNS o configuración IOS.
 
-## 3.2 `Datos PacketTracer.xlsx`
+## 3.2 `Datos PacketTracer.xlsx` — DESCARTADO (histórico)
 
 Propósito probable: inventario de dispositivos IoT y serie temporal sintética de mediciones de esos dispositivos. Confianza alta.
 
@@ -116,7 +118,7 @@ Ejemplos: cámara IP fija, cámara PTZ, NVR/DVR, control de acceso, panel de ala
 
 No hay seriales, IP, ubicación concreta, cliente, proyecto o equipo real. `Equipo` es un nombre de tipo y no una clave de activo. `Prioridad sugerida` es una recomendación, no un estado transaccional.
 
-## 3.4 `captura_tcp-2_Grupo Eventos Temporales.xlsx`
+## 3.4 `captura_tcp-2_Grupo Eventos Temporales.xlsx` — DESCARTADO (histórico)
 
 Propósito probable: evidencia tabular de una captura TCP/HTTP/WebSocket para análisis de eventos temporales. Confianza alta.
 
@@ -166,7 +168,9 @@ Ejemplos de flujo: `172.28.0.12:8080` ↔ `172.28.0.1:51340`, conexiones a `8080
 
 No se pudieron evaluar duplicados de clientes, NIT, facturas, empleados o proyectos porque esas entidades no están presentes.
 
-## 5. Relaciones entre archivos
+## 5. Relaciones entre archivos — revisar alcance vigente
+
+Las relaciones que involucren los dos Excel marcados como descartados son antecedentes históricos, no relaciones que se implementarán.
 
 | Relación | Campos | Certeza | Resultado |
 |---|---|---|---|
@@ -196,7 +200,9 @@ Esta propuesta es de diseño, no una migración ni una modificación del esquema
 | `network_links` | `id`, `origin_asset_id`, `origin_port`, `destination_asset_id`, `destination_port`, `link_type`, `cable_type`, `functional boolean`, `length numeric`, `criticality` | Dos FK a `technical_assets`; UNIQUE de extremos/puertos; `functional` nullable si el Excel está vacío |
 | `vlans` | `id`, `asset_id`, `pool_name`, `network cidr`, `gateway inet`, `dns inet` | FK; UNIQUE `(asset_id, pool_name, network)` |
 
-### Observabilidad y IoT
+### Observabilidad y IoT — propuestas de IoT/captura descartadas
+
+Las tablas `iot_measurements`, `capture_sessions` y `network_packets` que siguen se conservan como ideas históricas del análisis inicial. Están descartadas para el MVP actual; no crearlas ni cargar los archivos correspondientes.
 
 | Tabla | Propósito | Claves / origen |
 |---|---|---|
@@ -214,7 +220,7 @@ No se justifican tablas `customers`, `projects`, `invoices`, `payments`, `employ
 
 Cardinalidades técnicas principales: un activo tiene 0..N IPs, MACs, interfaces y capacidades; un enlace conecta exactamente dos activos; un dispositivo IoT tiene 0..N mediciones; una captura tiene 1..N paquetes/conversaciones. El catálogo de capacidades puede aplicarse a 0..N activos mediante una relación posterior.
 
-## 7. Mapeo a dominios del ERP
+## 7. Mapeo a dominios del ERP — parcialmente superado por ADR-0001
 
 | Dominio | Propietario | Entidades de estos Excel | Dependencias |
 |---|---|---|---|
@@ -227,7 +233,7 @@ Cardinalidades técnicas principales: un activo tiene 0..N IPs, MACs, interfaces
 
 La recomendación es crear un módulo modular `operations` o `technical-assets` dentro del monolito si el alcance lo requiere. Reporting debe consultar sus servicios/repositorios, no duplicar el inventario. Una evolución Strangler Fig podría extraer primero ingesta/observabilidad, pero no se justifica separar un microservicio por tabla ahora.
 
-## 8. Estrategia de migración
+## 8. Estrategia de migración — antecedente, aplicar solo a fuentes válidas
 
 1. **Inventario y respaldo**: conservar copias inmutables de los cuatro Excel, hashes, fecha, responsable y versión; no editar originales.
 2. **Perfilado**: registrar hojas, fila de encabezado, conteos, nulos, tipos, valores de catálogos, duplicados exactos y errores de formato.

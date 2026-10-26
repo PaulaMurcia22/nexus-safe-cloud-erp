@@ -1,18 +1,30 @@
 # Nexus Safe-Cloud ERP
 
-ERP web modular para Nexus Safe-Cloud, desarrollado por AST Solutions. El MVP centraliza autenticacion, usuarios, clientes empresariales, proyectos y un dashboard inicial.
+ERP web modular para Nexus Safe-Cloud, desarrollado por AST Solutions. El MVP académico implementa el inicio del corte vertical de servicio gestionado: cliente y sitio, inventario técnico, contratos/alcance, hallazgos, órdenes y horas, hitos, facturación y cartera se completarán por fases. La decisión de representar el centro de salud como cliente gestionado es un supuesto académico, no un dato del Excel; ver [ADR-0001](docs/architecture/adr-0001-opcion-c-servicio-gestionado.md).
 
 ## Alcance actual
 
 - Inicio y cierre de sesion con cookie HTTP.
-- Roles: `ADMIN`, `MANAGEMENT`, `COMMERCIAL`, `FINANCE` e `IT_OPERATIONS`.
+- Roles actualmente implementados: `ADMIN`, `MANAGEMENT`, `COMMERCIAL`, `FINANCE` e `IT_OPERATIONS`.
 - Gestion de usuarios para administradores.
 - Clientes B2B (empresas u organizaciones) identificados por NIT normalizado.
 - Proyectos asociados obligatoriamente a un cliente activo.
 - Dashboard con indicadores y filtro de proyectos.
 - API REST con validacion, autorizacion, consultas parametrizadas y manejo centralizado de errores.
 
-Facturacion, pagos, recursos, importacion automatica de Excel, MFA, SSO e integracion DIAN quedan fuera del MVP actual.
+El catálogo de monitoreo procede de un segundo Excel válido. Contratos, hallazgos, órdenes, tiempo, facturación, cartera, RBAC extendido y eventos de autenticación son parte del alcance de cierre, y se marcarán como parciales hasta implementarse. MFA/SSO/ZTNA corporativos, DIAN real, disponibilidad de red en vivo, recursos predictivos y otras capacidades no demostrables con las fuentes disponibles se declaran diferidos. La importación se realiza por CLI, no desde la web.
+
+### Origen y alcance de los datos
+
+| Fuente / registro | Qué representa | Origen |
+|---|---|---|
+| `Data_para_Proveedor_ERP.xlsx` | Inventario, enlaces, interfaces, VLAN/pools y controles de un centro de salud | Real importado; no identifica cliente ni sitio |
+| `Equipos_Monitoreo_Red_5196.xlsx` | Catálogo de 21 tipos de equipo, señales y protocolos | Real importado |
+| Cliente gestionado, sede, contrato, proyectos, trabajo y finanzas de demo | Datos deterministas creados para demostrar el flujo | Sintético, siempre identificado como tal |
+| `Datos_PacketTracer.xlsx` | Contradice el plan de direccionamiento del Excel válido | Descartado; no importar ni modelar |
+| `captura_tcp-2_Grupo_Eventos_Temporales.xlsx` | Captura ajena al dominio y con contenido potencialmente sensible | Descartado; no importar ni modelar |
+
+Los dos Excel válidos no contienen clientes, contratos, horas ni facturas. Los datos sintéticos no deben presentarse como registros reales.
 
 ## Arquitectura
 
@@ -89,6 +101,7 @@ psql -U postgres -d nexuserpm -f ./database/scripts/01_Create_tb_users.sql
 psql -U postgres -d nexuserpm -f ./database/scripts/02_Create_tb_clients.sql
 psql -U postgres -d nexuserpm -f ./database/scripts/03_Create_tb_projects.sql
 psql -U postgres -d nexuserpm -f ./database/scripts/04_Create_network_domain.sql
+# Luego aplicar los scripts 05_ a 11_ en orden y, para demo, 90_Insert_DatosPrueba.sql.
 ```
 
 Inicializar el administrador:
@@ -184,15 +197,18 @@ Todos los cambios estructurales deben quedar en `database/scripts/`:
 4. `03_Create_tb_projects.sql`: tabla de proyectos.
 5. `04_Create_network_domain.sql`: activos, enlaces, interfaces, VLAN/DHCP, monitoreo, lotes e incidencias.
 
-Los nuevos cambios deben usar el siguiente numero disponible, por ejemplo `04_Create_ix_projects_status.sql` o `05_Alter_tb_clients.sql`. No se deben reutilizar numeros ni crear carpetas `migrations`, `seeds` u otras dentro de `database`.
+Los nuevos cambios deben usar el siguiente numero disponible, por ejemplo `05_Alter_sites_customer_scope.sql` o `06_Create_vlans.sql`. No se deben reutilizar numeros ni crear carpetas `migrations`, `seeds` u otras dentro de `database`.
 
-El seed del administrador se ejecuta desde `backend/src/scripts/seed-admin.ts`; `database/scripts/02_seed_admin.md` documenta el procedimiento.
+El seed del administrador se ejecuta desde `backend/src/scripts/seed-admin.ts`; `database/scripts/README_seed_admin.md` documenta el procedimiento. La excepción de numeración corresponde a documentación Markdown, no a un script SQL.
 
 ## Documentacion relacionada
 
 - [Scripts y orden de base de datos](database/scripts/README.md)
-- [Inicializacion del administrador](database/scripts/02_seed_admin.md)
+- [Inicializacion del administrador](database/scripts/README_seed_admin.md)
 - [Analisis de archivos Excel y propuesta de modelo](docs/architecture/analisis-archivos-data.md)
+- [MVP y trazabilidad](docs/mvp/matriz-trazabilidad.md)
+- [Supuestos de demo](docs/mvp/supuestos.md)
+- [Guion de demo](docs/mvp/guion-demo.md)
 
 ## Limitaciones conocidas
 

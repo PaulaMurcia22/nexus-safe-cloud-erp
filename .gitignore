@@ -8,4 +8,7 @@ coverage/
 *.log
 *.tmp
 *.local
+.DS_Store
+__MACOSX/
+*.tsbuildinfo
 
