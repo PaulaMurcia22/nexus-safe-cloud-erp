@@ -10,7 +10,7 @@ Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ej
 | 2 | `01_Create_tb_users.sql` | Crea usuarios, roles, estados e indice de correo. |
 | 3 | `02_Create_tb_clients.sql` | Crea clientes B2B y unicidad del NIT normalizado. |
 | 4 | `03_Create_tb_projects.sql` | Crea proyectos y sus relaciones con clientes y usuarios. |
-| 5 | `04_Create_network_domain.sql` | Crea activos, interfaces, enlaces, DHCP/VLAN, controles, monitoreo y trazabilidad de importación. |
+| 5 | `04_Create_network_domain.sql` | Crea activos (incluye origen del dato), interfaces, enlaces, DHCP/VLAN, controles, monitoreo y trazabilidad de importación. |
 | 6 | `05_Alter_sites_customer_scope.sql` | Amplía `sites` para oficinas internas y sitios de clientes; incorpora origen. |
 | 7 | `06_Create_vlans.sql` | VLAN explícitas y membresía activo-VLAN. |
 | 8 | `07_Create_monitoring_catalog_and_contracts.sql` | Catálogo de señales, mapeo de activos, contratos y alcance. |
@@ -18,7 +18,7 @@ Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ej
 | 10 | `09_Create_billing.sql` | Facturas y vista de antigüedad de cartera. |
 | 11 | `10_Alter_roles_and_origin.sql` | Roles PMO/técnico y origen de clientes/proyectos. |
 | 12 | `11_Create_auth_events_and_sessions.sql` | Eventos de login y sesiones persistibles (activación de sesiones en Fase 6). |
-| 13 | `12_Alter_network_assets_data_origin.sql` | Añade el origen del dato a activos para inventario y reportes. |
+| 13 | `12_Alter_network_assets_data_origin.sql` | Compatibilidad para bases existentes; es no-op en instalaciones nuevas que ejecutaron 04 actualizado. |
 | Demo | `90_Insert_DatosPrueba.sql` | Clientes, sede, proyecto, contrato e hitos sintéticos deterministas; invocado también por `seed:demo`. |
 
 El administrador inicial no se inserta con SQL. Se crea mediante el script TypeScript del backend para generar el hash seguro:
