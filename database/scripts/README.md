@@ -11,6 +11,13 @@ Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ej
 | 3 | `02_Create_tb_clients.sql` | Crea clientes B2B y unicidad del NIT normalizado. |
 | 4 | `03_Create_tb_projects.sql` | Crea proyectos y sus relaciones con clientes y usuarios. |
 | 5 | `04_Create_network_domain.sql` | Crea activos, interfaces, enlaces, DHCP/VLAN, controles, monitoreo y trazabilidad de importación. |
+| 6 | `05_Alter_sites_customer_scope.sql` | Amplía `sites` para oficinas internas y sitios de clientes; incorpora origen. |
+| 7 | `06_Create_vlans.sql` | VLAN explícitas y membresía activo-VLAN. |
+| 8 | `07_Create_monitoring_catalog_and_contracts.sql` | Catálogo de señales, mapeo de activos, contratos y alcance. |
+| 9 | `08_Create_findings_and_work.sql` | Hallazgos, órdenes, horas y hitos. |
+| 10 | `09_Create_billing.sql` | Facturas y vista de antigüedad de cartera. |
+| 11 | `10_Alter_roles_and_origin.sql` | Roles PMO/técnico y origen de clientes/proyectos. |
+| 12 | `11_Create_auth_events_and_sessions.sql` | Eventos de login y sesiones persistibles (activación de sesiones en Fase 6). |
 
 El administrador inicial no se inserta con SQL. Se crea mediante el script TypeScript del backend para generar el hash seguro:
 
@@ -20,7 +27,7 @@ npm.cmd run seed:admin --prefix backend
 
 Antes de ejecutarlo, define `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12 caracteres), y opcionalmente `ADMIN_NAME`, en el entorno local. No hay credenciales predeterminadas.
 
-Consulta [02_seed_admin.md](02_seed_admin.md) para los detalles.
+Consulta [README_seed_admin.md](README_seed_admin.md) para los detalles.
 
 ## Prerrequisitos
 
@@ -55,7 +62,7 @@ La ruta y la version de PostgreSQL pueden variar.
 ## Convencion para nuevos scripts
 
 - Usar dos digitos iniciales y el siguiente numero disponible.
-- Describir la operacion y el objeto: `04_Create_ix_projects_status.sql`, `05_Alter_tb_clients.sql`.
+- Describir la operacion y el objeto: `12_Create_ix_projects_status.sql`, `13_Alter_tb_clients.sql`.
 - No reutilizar numeros ni renombrar scripts ya compartidos.
 - Incluir comentarios sobre proposito, prerrequisitos y posibles efectos.
 - Usar PostgreSQL y restricciones justificadas: `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, `CHECK` e indices.

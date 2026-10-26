@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
-import { normalizeBoolean, normalizeIp, normalizeMac, normalizeSerial, splitMulti, isRealPool } from './network-normalizers.js';
+import { normalizeBoolean, normalizeIp, normalizeMac, normalizeSerial, splitMulti, isRealPool, parseVlanPool, ipv4InCidr, inferVlanPoolName } from './network-normalizers.js';
+import { controlStatus, type NetworkControl } from './network-applicability.js';
+import { mapAssetToCatalog } from './catalog-type-mapping.js';
 
 type Issue = { sheet: string; row: number | null; field: string | null; severity: 'INFO'|'WARNING'|'ERROR'; message: string; value: string | null };
 const rowSchema = z.object({ name: z.string().min(1), serial: z.string().min(1), category: z.string().min(1) });
@@ -60,6 +62,43 @@ for(let r=2;r<=assetsSheet.rowCount;r++){
 const vlan=workbook.getWorksheet('05 VLAN DHCP');
 if(vlan) for(let r=2;r<=vlan.rowCount;r++){const d=rowObject(vlan,vlan.getRow(r)); const poolName=find(d,'Pool / VLAN','Pool','VLAN'); if(poolName&&!isRealPool(poolName)) issues.push({sheet:vlan.name,row:r,field:'Pool / VLAN',severity:'WARNING',message:'Valor con aspecto de modelo de equipo; no se importa como pool DHCP.',value:poolName});}
 const names=new Set(assets.map(a=>a.name));
+const assetCatalogMappings = assets.map((asset) => ({
+  asset,
+  mapping: mapAssetToCatalog(asset.category, text(asset.source['Rol inferido']) || null, asset.model),
+}));
+const unmappedCctvIot = assetCatalogMappings.filter(({ asset, mapping }) => asset.category === 'CCTV_IOT' && !mapping);
+for (const { asset } of unmappedCctvIot) {
+  issues.push({ sheet: assetsSheet.name, row: asset.row, field: 'catalog_type_mapping', severity: 'WARNING', message: 'Activo CCTV/IoT sin tipo de catálogo inequívoco; requiere revisión manual.', value: `${asset.name} | ${asset.model ?? ''}` });
+}
+const vlanSourceRows = new Map<string, { row: number; parsed: NonNullable<ReturnType<typeof parseVlanPool>>; cidr: string | null; gateway: string | null }>();
+const vlanSourceSheet = workbook.getWorksheet('05 VLAN DHCP');
+if (vlanSourceSheet) {
+  for (let r = 2; r <= vlanSourceSheet.rowCount; r += 1) {
+    const row = vlanSourceSheet.getRow(r);
+    const parsed = parseVlanPool(row.getCell(2).value);
+    if (!parsed || vlanSourceRows.has(parsed.sourceName)) continue;
+    const netmask = text(row.getCell(4).value) || null;
+    vlanSourceRows.set(parsed.sourceName, {
+      row: r,
+      parsed,
+      cidr: toCidr(row.getCell(3).value, netmask),
+      gateway: normalizeIp(row.getCell(5).value)[0] ?? null,
+    });
+  }
+}
+const vlanMembershipPlan = assets.map((asset) => {
+  const assetIps = normalizeIp(asset.source['IP(s)']);
+  const ipVlan = [...vlanSourceRows.values()].find((vlan) => vlan.cidr && assetIps.some((ip) => ipv4InCidr(ip, vlan.cidr!)));
+  if (ipVlan) return { assetName: asset.name, poolName: ipVlan.parsed.sourceName, basis: 'IP_IN_CIDR' as const };
+  const inferredName = inferVlanPoolName(asset.name, asset.model);
+  return inferredName && vlanSourceRows.has(inferredName)
+    ? { assetName: asset.name, poolName: inferredName, basis: 'NAME_INFERRED' as const }
+    : null;
+}).filter((plan): plan is NonNullable<typeof plan> => plan !== null);
+const assetsWithoutVlan = assets.length - vlanMembershipPlan.length;
+if (assetsWithoutVlan > 0) {
+  issues.push({ sheet: assetsSheet.name, row: null, field: 'VLAN', severity: 'WARNING', message: 'Activos sin membresía VLAN por IP ni coincidencia nominal conservadora.', value: String(assetsWithoutVlan) });
+}
 for(let r=2;r<=assetsSheet.rowCount;r++)for(const [col,field] of [[11,'IP(s)'],[16,'MAC(s)']] as const){const raw=text(assetsSheet.getRow(r).getCell(col).value);if(raw.includes(';'))issues.push({sheet:assetsSheet.name,row:r,field,severity:'INFO',message:'Valor multivalor separado por punto y coma; se normaliza a registros individuales.',value:raw});}
 const coreSheet=workbook.getWorksheet('02 CORE');
 if(coreSheet)for(let r=2;r<=coreSheet.rowCount;r++)for(let i=0;i<7;i++){const raw=text(coreSheet.getRow(r).getCell(14+i).value);if(/no aparece/i.test(raw))issues.push({sheet:coreSheet.name,row:r,field:['NETFLOW','SYSLOG','SNMP','NTP','SSH','AAA','HSRP'][i],severity:'INFO',message:'Control no detectado en la configuración exportada.',value:raw});}
@@ -105,13 +144,39 @@ try {
     power_on=CASE WHEN network_assets.manual_overrides ? 'power_on' THEN network_assets.power_on ELSE EXCLUDED.power_on END,
     config_lines=CASE WHEN network_assets.manual_overrides ? 'config_lines' THEN network_assets.config_lines ELSE EXCLUDED.config_lines END,
     config_register=CASE WHEN network_assets.manual_overrides ? 'config_register' THEN network_assets.config_register ELSE EXCLUDED.config_register END,updated_at=now()
+    WHERE network_assets.source_id IS DISTINCT FROM EXCLUDED.source_id
+       OR network_assets.source_data IS DISTINCT FROM EXCLUDED.source_data
+       OR (NOT (network_assets.manual_overrides ? 'name') AND network_assets.name IS DISTINCT FROM EXCLUDED.name)
+       OR (NOT (network_assets.manual_overrides ? 'category') AND network_assets.category IS DISTINCT FROM EXCLUDED.category)
+       OR (NOT (network_assets.manual_overrides ? 'model') AND network_assets.model IS DISTINCT FROM EXCLUDED.model)
+       OR (NOT (network_assets.manual_overrides ? 'role') AND network_assets.role IS DISTINCT FROM EXCLUDED.role)
+       OR (NOT (network_assets.manual_overrides ? 'criticality') AND network_assets.criticality IS DISTINCT FROM EXCLUDED.criticality)
+       OR (NOT (network_assets.manual_overrides ? 'serial_raw') AND network_assets.serial_raw IS DISTINCT FROM EXCLUDED.serial_raw)
+       OR (NOT (network_assets.manual_overrides ? 'sys_name') AND network_assets.sys_name IS DISTINCT FROM EXCLUDED.sys_name)
+       OR (NOT (network_assets.manual_overrides ? 'system_version') AND network_assets.system_version IS DISTINCT FROM EXCLUDED.system_version)
+       OR (NOT (network_assets.manual_overrides ? 'power_on') AND network_assets.power_on IS DISTINCT FROM EXCLUDED.power_on)
+       OR (NOT (network_assets.manual_overrides ? 'config_lines') AND network_assets.config_lines IS DISTINCT FROM EXCLUDED.config_lines)
+       OR (NOT (network_assets.manual_overrides ? 'config_register') AND network_assets.config_register IS DISTINCT FROM EXCLUDED.config_register)
     RETURNING id`,[asset.name,asset.category,asset.model,text(asset.source['Rol inferido'])||null,asset.criticality,asset.serialRaw,asset.serial,asset.serial,JSON.stringify(asset.source),text(asset.source['SYS_NAME'])||null,text(asset.source['IOS/Command Set'])||null,normalizeBoolean(asset.source['Power']),text(asset.source['Config lines'])!==''&&Number.isInteger(Number(text(asset.source['Config lines'])))?Number(text(asset.source['Config lines'])):null,text(asset.source['Config register'])||null]);
-  if(existing?.rowCount) updated++; else inserted++;
+  if(result.rowCount){if(existing?.rowCount)updated++;else inserted++;}
  }
  if(!dryRun){
   const byName=new Map<string,string>(); const ids=await client!.query<{id:string;name:string}>('SELECT id,name FROM network_assets');
   for(const a of ids.rows) byName.set(a.name,a.id);
   const assetId=(name:string)=>byName.get(name)??null;
+  const catalogExists = await client!.query<{ count: number }>('SELECT COUNT(*)::int AS count FROM monitoring_signal_catalog');
+  if (!Number(catalogExists.rows[0]?.count ?? 0)) {
+   issues.push({ sheet: assetsSheet.name, row: null, field: 'catalog_type_mapping', severity: 'WARNING', message: 'Importe primero Equipos_Monitoreo_Red_5196.xlsx para habilitar el mapeo de tipos.', value: null });
+  } else {
+   for (const { asset, mapping } of assetCatalogMappings) {
+    if (!mapping) continue;
+    await client!.query(
+     `INSERT INTO catalog_type_mapping(asset_category,asset_model,equipment_type,confidence,mapping_basis,data_origin)
+      VALUES($1,$2,$3,$4,$5,'MANUAL') ON CONFLICT(asset_category,asset_model,equipment_type) DO NOTHING`,
+     [asset.category,asset.model ?? '*',mapping.equipmentType,mapping.confidence,mapping.basis],
+    );
+   }
+  }
   const inv=workbook.getWorksheet('01 Inventario')!;
   for(let r=2;r<=inv.rowCount;r++){
    const row=inv.getRow(r); const name=text(row.getCell(2).value), id=assetId(name); if(!id) continue;
@@ -127,13 +192,13 @@ try {
    const row=interfaces.getRow(r); const equipment=text(row.getCell(1).value), intName=text(row.getCell(3).value); if(!intName)continue;
    const id=assetId(equipment); if(!id){if(!hasIssue(interfaces.name,r))issues.push({sheet:interfaces.name,row:r,field:'Equipo',severity:'WARNING',message:'Interfaz huérfana: no se resolvió equipo exacto.',value:equipment});continue;}
    const type=text(row.getCell(4).value).toUpperCase();const ip=normalizeIp(row.getCell(5).value)[0]||null;
-   await client!.query('INSERT INTO asset_interfaces(asset_id,name,interface_type,ip,netmask,vlan_detail,detail) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(asset_id,name) DO UPDATE SET interface_type=EXCLUDED.interface_type,ip=EXCLUDED.ip,netmask=EXCLUDED.netmask,vlan_detail=EXCLUDED.vlan_detail,detail=EXCLUDED.detail',[id,intName,/^(TRUNK|L3|ACCESS)$/.test(type)?type:'OTHER',ip,text(row.getCell(6).value)||null,text(row.getCell(7).value)||null,JSON.stringify({sourceRow:r})]);
+   await client!.query('INSERT INTO asset_interfaces(asset_id,name,interface_type,ip,netmask,vlan_detail,detail) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(asset_id,name) DO UPDATE SET interface_type=EXCLUDED.interface_type,ip=EXCLUDED.ip,netmask=EXCLUDED.netmask,vlan_detail=EXCLUDED.vlan_detail,detail=EXCLUDED.detail WHERE ROW(asset_interfaces.interface_type,asset_interfaces.ip,asset_interfaces.netmask,asset_interfaces.vlan_detail,asset_interfaces.detail) IS DISTINCT FROM ROW(EXCLUDED.interface_type,EXCLUDED.ip,EXCLUDED.netmask,EXCLUDED.vlan_detail,EXCLUDED.detail)',[id,intName,/^(TRUNK|L3|ACCESS)$/.test(type)?type:'OTHER',ip,text(row.getCell(6).value)||null,text(row.getCell(7).value)||null,JSON.stringify({sourceRow:r})]);
   }
   const links=workbook.getWorksheet('03 Enlaces');
   if(links) for(let r=2;r<=links.rowCount;r++){
    const row=links.getRow(r);const from=text(row.getCell(2).value),to=text(row.getCell(4).value);if(!from&&!to)continue;
    if((!assetId(from)||!assetId(to))&&!hasIssue(links.name,r)) issues.push({sheet:links.name,row:r,field:'equipo',severity:'WARNING',message:'Enlace huérfano: uno o ambos extremos no coinciden exactamente.',value:`${from} -> ${to}`});
-   await client!.query('INSERT INTO network_links(source_asset_id,target_asset_id,source_name,target_name,source_port,target_port,link_type,cable_type,functional,length_m,criticality,source_row) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(source_row) DO UPDATE SET source_asset_id=EXCLUDED.source_asset_id,target_asset_id=EXCLUDED.target_asset_id,source_name=EXCLUDED.source_name,target_name=EXCLUDED.target_name,source_port=EXCLUDED.source_port,target_port=EXCLUDED.target_port,link_type=EXCLUDED.link_type,cable_type=EXCLUDED.cable_type,functional=EXCLUDED.functional,length_m=EXCLUDED.length_m,criticality=EXCLUDED.criticality WHERE NOT COALESCE((network_links.extra->>\'user_edited\')::boolean,FALSE)',[assetId(from),assetId(to),from||null,to||null,text(row.getCell(3).value)||null,text(row.getCell(5).value)||null,text(row.getCell(6).value)||null,text(row.getCell(7).value)||null,normalizeBoolean(row.getCell(8).value)===true,Number(text(row.getCell(9).value))||null,normalizedCriticality(text(row.getCell(10).value)),r]);
+   await client!.query('INSERT INTO network_links(source_asset_id,target_asset_id,source_name,target_name,source_port,target_port,link_type,cable_type,functional,length_m,criticality,source_row) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(source_row) DO UPDATE SET source_asset_id=EXCLUDED.source_asset_id,target_asset_id=EXCLUDED.target_asset_id,source_name=EXCLUDED.source_name,target_name=EXCLUDED.target_name,source_port=EXCLUDED.source_port,target_port=EXCLUDED.target_port,link_type=EXCLUDED.link_type,cable_type=EXCLUDED.cable_type,functional=EXCLUDED.functional,length_m=EXCLUDED.length_m,criticality=EXCLUDED.criticality WHERE NOT COALESCE((network_links.extra->>\'user_edited\')::boolean,FALSE) AND ROW(network_links.source_asset_id,network_links.target_asset_id,network_links.source_name,network_links.target_name,network_links.source_port,network_links.target_port,network_links.link_type,network_links.cable_type,network_links.functional,network_links.length_m,network_links.criticality) IS DISTINCT FROM ROW(EXCLUDED.source_asset_id,EXCLUDED.target_asset_id,EXCLUDED.source_name,EXCLUDED.target_name,EXCLUDED.source_port,EXCLUDED.target_port,EXCLUDED.link_type,EXCLUDED.cable_type,EXCLUDED.functional,EXCLUDED.length_m,EXCLUDED.criticality)',[assetId(from),assetId(to),from||null,to||null,text(row.getCell(3).value)||null,text(row.getCell(5).value)||null,text(row.getCell(6).value)||null,text(row.getCell(7).value)||null,normalizeBoolean(row.getCell(8).value),Number(text(row.getCell(9).value))||null,normalizedCriticality(text(row.getCell(10).value)),r]);
   }
   const pools=workbook.getWorksheet('05 VLAN DHCP');
   if(pools) for(let r=2;r<=pools.rowCount;r++){
@@ -141,16 +206,50 @@ try {
    if(!isRealPool(name)){if(!issues.some(i=>i.sheet===pools.name&&i.row===r))issues.push({sheet:pools.name,row:r,field:'Pool / VLAN',severity:'WARNING',message:'Valor con aspecto de modelo, no de pool; se omite.',value:name});continue;}
    const owner=text(row.getCell(1).value);const netmask=text(row.getCell(4).value)||null;const cidr=toCidr(row.getCell(3).value,netmask);
    if(!cidr)issues.push({sheet:pools.name,row:r,field:'Red',severity:'WARNING',message:'No se pudo formar un CIDR válido a partir de red y máscara.',value:`${text(row.getCell(3).value)} / ${netmask??''}`});
-   await client!.query('INSERT INTO dhcp_pools(asset_id,name,network,netmask,gateway,dns,source_row) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT(name) DO UPDATE SET asset_id=EXCLUDED.asset_id,network=EXCLUDED.network,netmask=EXCLUDED.netmask,gateway=EXCLUDED.gateway,dns=EXCLUDED.dns WHERE NOT COALESCE((dhcp_pools.extra->>\'user_edited\')::boolean,FALSE)',[assetId(owner),name,cidr,netmask,normalizeIp(row.getCell(5).value)[0]||null,JSON.stringify(normalizeIp(row.getCell(6).value)),r]);
+   await client!.query('INSERT INTO dhcp_pools(asset_id,name,network,netmask,gateway,dns,source_row) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT(name) DO UPDATE SET asset_id=EXCLUDED.asset_id,network=EXCLUDED.network,netmask=EXCLUDED.netmask,gateway=EXCLUDED.gateway,dns=EXCLUDED.dns WHERE NOT COALESCE((dhcp_pools.extra->>\'user_edited\')::boolean,FALSE) AND ROW(dhcp_pools.asset_id,dhcp_pools.network,dhcp_pools.netmask,dhcp_pools.gateway,dhcp_pools.dns) IS DISTINCT FROM ROW(EXCLUDED.asset_id,EXCLUDED.network,EXCLUDED.netmask,EXCLUDED.gateway,EXCLUDED.dns)',[assetId(owner),name,cidr,netmask,normalizeIp(row.getCell(5).value)[0]||null,JSON.stringify(normalizeIp(row.getCell(6).value)),r]);
+  }
+  for (const vlan of vlanSourceRows.values()) {
+   const pool = await client!.query<{ id: string }>('SELECT id FROM dhcp_pools WHERE name=$1', [vlan.parsed.sourceName]);
+   if (!pool.rowCount) continue;
+   await client!.query(
+    `INSERT INTO vlans(site_id,vlan_number,name,area,subnet,gateway,sensitivity,dhcp_pool_id,data_origin,source_row,extra)
+     VALUES(NULL,$1,$2,$2,$3::cidr,$4::inet,$5,$6,'IMPORTED',$7,$8::jsonb)
+     ON CONFLICT DO UPDATE SET name=EXCLUDED.name,area=EXCLUDED.area,subnet=EXCLUDED.subnet,gateway=EXCLUDED.gateway,
+       sensitivity=EXCLUDED.sensitivity,dhcp_pool_id=EXCLUDED.dhcp_pool_id,data_origin='IMPORTED',source_row=EXCLUDED.source_row,
+       updated_at=now()
+     WHERE NOT COALESCE((vlans.extra->>'user_edited')::boolean,FALSE)
+       AND ROW(vlans.name,vlans.area,vlans.subnet,vlans.gateway,vlans.sensitivity,vlans.dhcp_pool_id,vlans.data_origin,vlans.source_row)
+         IS DISTINCT FROM ROW(EXCLUDED.name,EXCLUDED.area,EXCLUDED.subnet,EXCLUDED.gateway,EXCLUDED.sensitivity,EXCLUDED.dhcp_pool_id,EXCLUDED.data_origin,EXCLUDED.source_row)`,
+    [vlan.parsed.number,vlan.parsed.name,vlan.cidr,vlan.gateway,vlan.parsed.sensitive?'SENSITIVE':'NORMAL',pool.rows[0].id,vlan.row,JSON.stringify({sourcePoolName:vlan.parsed.sourceName})],
+   );
   }
   const core=workbook.getWorksheet('02 CORE');
-  if(core){const controls=['NETFLOW','SYSLOG','SNMP','NTP','SSH','AAA','HSRP'];for(let r=2;r<=core.rowCount;r++){const row=core.getRow(r),name=text(row.getCell(2).value),id=assetId(name);if(!id)continue;for(let i=0;i<controls.length;i++){const raw=text(row.getCell(14+i).value);if(!raw)continue;const status=/no aparece/i.test(raw)?'NOT_DETECTED':normalizeBoolean(raw)===true?'CONFIGURED':normalizeBoolean(raw)===false?'NOT_DETECTED':'NOT_DETECTED';await client!.query('INSERT INTO asset_controls(asset_id,control,status,detail,source_row) VALUES($1,$2,$3,$4,$5) ON CONFLICT(asset_id,control) DO UPDATE SET status=EXCLUDED.status,detail=EXCLUDED.detail',[id,controls[i],status,raw,r]);}}}
+  if(core){const controls:NetworkControl[]=['NETFLOW','SYSLOG','SNMP','NTP','SSH','AAA','HSRP'];for(let r=2;r<=core.rowCount;r++){const row=core.getRow(r),name=text(row.getCell(2).value),role=text(row.getCell(4).value),id=assetId(name);if(!id)continue;for(let i=0;i<controls.length;i++){const raw=text(row.getCell(14+i).value);const status=controlStatus(controls[i],role,normalizeBoolean(raw));await client!.query('INSERT INTO asset_controls(asset_id,control,status,detail,source_row) VALUES($1,$2,$3,$4,$5) ON CONFLICT(asset_id,control) DO UPDATE SET status=EXCLUDED.status,detail=EXCLUDED.detail,source_row=EXCLUDED.source_row WHERE ROW(asset_controls.status,asset_controls.detail,asset_controls.source_row) IS DISTINCT FROM ROW(EXCLUDED.status,EXCLUDED.detail,EXCLUDED.source_row)',[id,controls[i],status,raw||null,r]);}}}
   const technologies=workbook.getWorksheet('07 Posible Monitoreo');
-  if(technologies)for(let r=2;r<=technologies.rowCount;r++){const row=technologies.getRow(r),technology=text(row.getCell(1).value);if(!technology)continue;await client!.query('INSERT INTO monitoring_technologies(technology,transport_port,collect_description,vendor_confirmation,confirmation_status,extra) VALUES($1,$2,$3,$4,\'PENDING\',$5::jsonb) ON CONFLICT(technology) DO UPDATE SET transport_port=EXCLUDED.transport_port,collect_description=EXCLUDED.collect_description,vendor_confirmation=EXCLUDED.vendor_confirmation',[technology,text(row.getCell(2).value)||null,text(row.getCell(3).value)||null,text(row.getCell(4).value)||null,JSON.stringify({sourceRow:r})]);}
+  if(technologies)for(let r=2;r<=technologies.rowCount;r++){const row=technologies.getRow(r),technology=text(row.getCell(1).value);if(!technology)continue;await client!.query('INSERT INTO monitoring_technologies(technology,transport_port,collect_description,vendor_confirmation,confirmation_status,extra) VALUES($1,$2,$3,$4,\'PENDING\',$5::jsonb) ON CONFLICT(technology) DO UPDATE SET transport_port=EXCLUDED.transport_port,collect_description=EXCLUDED.collect_description,vendor_confirmation=EXCLUDED.vendor_confirmation WHERE ROW(monitoring_technologies.transport_port,monitoring_technologies.collect_description,monitoring_technologies.vendor_confirmation) IS DISTINCT FROM ROW(EXCLUDED.transport_port,EXCLUDED.collect_description,EXCLUDED.vendor_confirmation)',[technology,text(row.getCell(2).value)||null,text(row.getCell(3).value)||null,text(row.getCell(4).value)||null,JSON.stringify({sourceRow:r})]);}
   const macSheet=workbook.getWorksheet('08 IPS MAC GATEWAY');
   if(macSheet)for(let r=2;r<=macSheet.rowCount;r++){const row=macSheet.getRow(r),name=text(row.getCell(2).value),id=assetId(name);if(!name)continue;
    const macVals=normalizeMac(row.getCell(9).value); for(const mac of macVals){if(id)await client!.query('INSERT INTO asset_mac_addresses(asset_id,mac,source_field) VALUES($1,$2,$3) ON CONFLICT(asset_id,mac) DO NOTHING',[id,mac,'08 IPS MAC GATEWAY']);}
    const ips=normalizeIp(row.getCell(5).value);for(const ip of ips)if(id)await client!.query('INSERT INTO asset_ip_addresses(asset_id,ip,netmask,gateway,dns,dhcp_server,source_field) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7) ON CONFLICT(asset_id,ip) DO UPDATE SET netmask=EXCLUDED.netmask,gateway=EXCLUDED.gateway,dns=EXCLUDED.dns,dhcp_server=EXCLUDED.dhcp_server',[id,ip,text(row.getCell(6).value)||null,normalizeIp(row.getCell(7).value)[0]||null,JSON.stringify(normalizeIp(row.getCell(8).value)),normalizeIp(row.getCell(10).value)[0]||null,'08 IPS MAC GATEWAY']);
+  }
+  await client!.query(
+   `INSERT INTO asset_vlan_membership(asset_id,vlan_id,basis,data_origin)
+    SELECT DISTINCT ip.asset_id,v.id,'IP_IN_CIDR','IMPORTED'
+    FROM asset_ip_addresses ip JOIN vlans v ON v.subnet IS NOT NULL AND ip.ip <<= v.subnet
+    ON CONFLICT(asset_id,vlan_id) DO UPDATE SET basis=EXCLUDED.basis
+    WHERE asset_vlan_membership.data_origin='IMPORTED'`,
+  );
+  const vlanIds=await client!.query<{id:string;pool_name:string}>('SELECT v.id,p.name AS pool_name FROM vlans v JOIN dhcp_pools p ON p.id=v.dhcp_pool_id');
+  const vlanIdByPool=new Map(vlanIds.rows.map((row)=>[row.pool_name,row.id]));
+  for(const plan of vlanMembershipPlan.filter((item)=>item.basis==='NAME_INFERRED')){
+   const id=assetId(plan.assetName),vlanId=vlanIdByPool.get(plan.poolName);if(!id||!vlanId)continue;
+   await client!.query(
+    `INSERT INTO asset_vlan_membership(asset_id,vlan_id,basis,data_origin)
+     SELECT $1,$2,'NAME_INFERRED','IMPORTED'
+     WHERE NOT EXISTS (SELECT 1 FROM asset_vlan_membership WHERE asset_id=$1)
+     ON CONFLICT(asset_id,vlan_id) DO NOTHING`,
+    [id,vlanId],
+   );
   }
  }
  if(!dryRun && batchId){
@@ -162,9 +261,10 @@ try {
 const dataRows=(name:string)=>{const ws=workbook.getWorksheet(name);return ws?countDataRows(ws):0;};
 const inventoryCategories=assets.reduce<Record<string,number>>((a,x)=>(a[x.category]=(a[x.category]||0)+1,a),{});
 const criticalityCounts=assets.reduce<Record<string,number>>((a,x)=>(a[x.criticality]=(a[x.criticality]||0)+1,a),{});
-const controlNames=['NETFLOW','SYSLOG','SNMP','NTP','SSH','AAA','HSRP'];const controlCoverage:Record<string,number>={};
-const controlsWorksheet=workbook.getWorksheet('02 CORE');if(controlsWorksheet)for(let i=0;i<controlNames.length;i++){let configured=0;for(let r=2;r<=controlsWorksheet.rowCount;r++)if(normalizeBoolean(controlsWorksheet.getRow(r).getCell(14+i).value)===true)configured++;controlCoverage[controlNames[i]]=configured;}
+const controlNames:NetworkControl[]=['NETFLOW','SYSLOG','SNMP','NTP','SSH','AAA','HSRP'];const controlCoverage:Record<string,{configured:number;notDetected:number;notApplicable:number}>={};
+const controlsWorksheet=workbook.getWorksheet('02 CORE');if(controlsWorksheet)for(let i=0;i<controlNames.length;i++){const counts={configured:0,notDetected:0,notApplicable:0};for(let r=2;r<=controlsWorksheet.rowCount;r++){const row=controlsWorksheet.getRow(r);const status=controlStatus(controlNames[i],text(row.getCell(4).value),normalizeBoolean(row.getCell(14+i).value));if(status==='CONFIGURED')counts.configured++;else if(status==='NOT_APPLICABLE')counts.notApplicable++;else counts.notDetected++;}controlCoverage[controlNames[i]]=counts;}
 const poolNames=new Set<string>();const poolWs=workbook.getWorksheet('05 VLAN DHCP');if(poolWs)for(let r=2;r<=poolWs.rowCount;r++){const v=text(poolWs.getRow(r).getCell(2).value);if(isRealPool(v))poolNames.add(v);}
-const linkWs=workbook.getWorksheet('03 Enlaces');let criticalLinks=0,nonFunctionalLinks=0;if(linkWs)for(let r=2;r<=linkWs.rowCount;r++){const row=linkWs.getRow(r);if(!Array.from({length:linkWs.columnCount},(_,i)=>text(row.getCell(i+1).value)).some(Boolean))continue;if(normalizedCriticality(text(row.getCell(10).value))==='CRITICAL')criticalLinks++;if(normalizeBoolean(row.getCell(8).value)!==true)nonFunctionalLinks++;}
-const reconciliation={expected:{assets:76,links:74,criticalLinks:11,nonFunctionalLinks:5,interfaces:148,pools:17,monitoringTechnologies:8,infraredControls:10,criticality:{CRITICAL:5,HIGH:5,MEDIUM:66},configuredControls:{SYSLOG:0,SNMP:0,NTP:0,AAA:0,SSH:1,NETFLOW:4,HSRP:2}},observed:{assets:assets.length,links:dataRows('03 Enlaces'),criticalLinks,nonFunctionalLinks,interfaces:dataRows('04 Interfaces Config'),pools:poolNames.size,monitoringTechnologies:dataRows('07 Posible Monitoreo'),infraredControls:dataRows('02 CORE'),categoryCounts:inventoryCategories,criticalityCounts,configuredControls:controlCoverage,serials:assets.length,serialsUnique:new Set(assets.map(a=>a.serial)).size}};
-console.log(JSON.stringify({file:path.basename(file),sha256:sha,dryRun,rowsRead:read,assets:assets.length,wouldInsertAssets:dryRun?assets.length:undefined,inserted,updated,rejected,issues:issues.length,issuesBySeverity:Object.fromEntries(['INFO','WARNING','ERROR'].map(s=>[s,issues.filter(i=>i.severity===s).length])),reconciliation,batchId},null,2));
+const linkWs=workbook.getWorksheet('03 Enlaces');let criticalLinks=0,nonFunctionalLinks=0,unknownFunctionalLinks=0;if(linkWs)for(let r=2;r<=linkWs.rowCount;r++){const row=linkWs.getRow(r);if(!Array.from({length:linkWs.columnCount},(_,i)=>text(row.getCell(i+1).value)).some(Boolean))continue;if(normalizedCriticality(text(row.getCell(10).value))==='CRITICAL')criticalLinks++;const functional=normalizeBoolean(row.getCell(8).value);if(functional===false)nonFunctionalLinks++;if(functional===null)unknownFunctionalLinks++;}
+const reconciliation={expected:{assets:76,links:74,criticalLinks:11,nonFunctionalLinks:0,unknownFunctionalLinks:5,interfaces:147,pools:17,vlans:17,monitoringTechnologies:8,infraredControls:10,criticality:{CRITICAL:5,HIGH:5,MEDIUM:66},configuredControls:{SYSLOG:0,SNMP:0,NTP:0,AAA:0,SSH:1,NETFLOW:4,HSRP:2},notApplicableControls:14,applicableNotDetectedControls:49},observed:{assets:assets.length,links:dataRows('03 Enlaces'),criticalLinks,nonFunctionalLinks,unknownFunctionalLinks,interfaces:dataRows('04 Interfaces Config'),pools:poolNames.size,vlans:vlanSourceRows.size,vlanMemberships:vlanMembershipPlan.length,assetsWithoutVlan,monitoringTechnologies:dataRows('07 Posible Monitoreo'),infraredControls:dataRows('02 CORE'),categoryCounts:inventoryCategories,criticalityCounts,configuredControls:controlCoverage,notApplicableControls:Object.values(controlCoverage).reduce((sum,counts)=>sum+counts.notApplicable,0),applicableNotDetectedControls:Object.values(controlCoverage).reduce((sum,counts)=>sum+counts.notDetected,0),catalogMappingCandidates:assetCatalogMappings.filter(({mapping})=>mapping).length,catalogMappingUnmappedCctvIot:unmappedCctvIot.length,serials:assets.length,serialsUnique:new Set(assets.map(a=>a.serial)).size}};
+const warningGroups=Object.values(issues.filter((issue)=>issue.severity==='WARNING').reduce<Record<string,{sheet:string;message:string;count:number}>>((groups,issue)=>{const key=`${issue.sheet}\u0000${issue.message}`;groups[key]??={sheet:issue.sheet,message:issue.message,count:0};groups[key].count++;return groups;},{}));
+console.log(JSON.stringify({file:path.basename(file),sha256:sha,dryRun,rowsRead:read,assets:assets.length,wouldInsertAssets:dryRun?assets.length:undefined,inserted,updated,rejected,issues:issues.length,issuesBySeverity:Object.fromEntries(['INFO','WARNING','ERROR'].map(s=>[s,issues.filter(i=>i.severity===s).length])),warningGroups,reconciliation,batchId},null,2));

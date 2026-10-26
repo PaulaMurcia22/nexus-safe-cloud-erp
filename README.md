@@ -116,7 +116,7 @@ Define `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ADMIN_NAME` en el entorn
 
 1. Abrir `00_create_database.sql` conectado a `postgres` y ejecutarlo.
 2. Seleccionar la base `nexuserpm`.
-3. Ejecutar `01_Create_tb_users.sql`, `02_Create_tb_clients.sql` y `03_Create_tb_projects.sql`, en ese orden.
+3. Ejecutar `01_Create_tb_users.sql` a `11_Create_auth_events_and_sessions.sql` en orden.
 4. Ejecutar desde una terminal el comando `npm run seed:admin --prefix backend`.
 
 Los scripts usan `IF NOT EXISTS` en los objetos principales, pero deben ejecutarse en el orden indicado. No eliminan bases ni tablas automaticamente.

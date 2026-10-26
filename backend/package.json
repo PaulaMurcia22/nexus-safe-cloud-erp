@@ -9,7 +9,8 @@
     "start": "node dist/server.js",
     "seed:admin": "tsx src/scripts/seed-admin.ts",
     "test": "tsx --test src/tests/*.test.ts src/modules/network/tests/*.test.ts",
-    "import:network": "tsx src/scripts/import-network.ts"
+    "import:network": "tsx src/scripts/import-network.ts",
+    "import:catalog": "tsx src/scripts/import-catalog.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
