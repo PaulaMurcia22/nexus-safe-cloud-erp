@@ -4,7 +4,8 @@ import { requireRoles } from '../../shared/auth.js';
 import { asyncHandler } from '../../middlewares/errors.js';
 
 export const networkRouter=Router();
-const read=requireRoles('ADMIN','MANAGEMENT','IT_OPERATIONS');
+networkRouter.get('/my-assets',requireRoles('TECHNICIAN'),asyncHandler(c.technicianAssets));
+const read=requireRoles('ADMIN','MANAGEMENT','IT_OPERATIONS','PMO');
 const write=requireRoles('ADMIN','IT_OPERATIONS');
 networkRouter.use(read);
 networkRouter.get('/assets',asyncHandler(c.assets));

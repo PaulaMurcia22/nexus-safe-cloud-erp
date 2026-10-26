@@ -1,10 +1,11 @@
 import { query, listAssets, getAsset } from './repository.js';
 import { validateCustomFieldValues } from './custom-field-validation.js';
+import {audit as writeAudit} from '../../shared/audit.js';
 
 type Actor={id:string;role:string};
 const normalizeSerial=(value:unknown)=>String(value).trim().replace(/\s+/g,'').replace(/-+$/g,'').toUpperCase();
 async function audit(actor:Actor, action:string, entityType:string, entityId:string, before:unknown=null, after:unknown={}) {
-  await query(`INSERT INTO audit_log (actor_id, action, entity, entity_id, before_data, after_data) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)`,[actor.id,action,entityType,entityId,before===null?null:JSON.stringify(before),JSON.stringify(after)]);
+  await writeAudit(actor.id,action,entityType,entityId,before,after);
 }
 export async function createAsset(input:Record<string,unknown>,actor:Actor){
   const serial=String(input.serialNumber).trim();const manualKeys=['serial_raw','name','category',...(input.model!==undefined?['model']:[]),...(input.vendor!==undefined?['role']:[])];const r=await query(`INSERT INTO network_assets (serial_raw,serial_normalized,name,category,model,role,status,site_id,customer_id,project_id,extra,manual_overrides,created_by,updated_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$13) RETURNING *`,[serial,normalizeSerial(serial),input.hostname??serial,input.assetType,input.model??null,input.vendor??null,input.status??'ACTIVE',input.siteId??null,input.customerId??null,input.projectId??null,JSON.stringify(input.notes?{notes:input.notes}:{}),JSON.stringify(Object.fromEntries(manualKeys.map(key=>[key,true]))),actor.id]);
