@@ -129,8 +129,8 @@ try {
   const existing=client?await client.query<{id:string}>('SELECT id FROM network_assets WHERE serial_normalized=$1',[asset.serial]):null;
   if(dryRun) continue;
   // Reimport changes only source-managed columns. site/customer/project, extra and user-entered values remain intact.
-  const result=await client!.query(`INSERT INTO network_assets(name,category,model,role,criticality,serial_raw,serial_normalized,source_id,source_data,sys_name,system_version,power_on,config_lines,config_register)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14)
+  const result=await client!.query(`INSERT INTO network_assets(name,category,model,role,criticality,serial_raw,serial_normalized,source_id,source_data,sys_name,system_version,power_on,config_lines,config_register,data_origin)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,'IMPORTED')
     ON CONFLICT(serial_normalized) DO UPDATE SET
     name=CASE WHEN network_assets.manual_overrides ? 'name' THEN network_assets.name ELSE EXCLUDED.name END,
     category=CASE WHEN network_assets.manual_overrides ? 'category' THEN network_assets.category ELSE EXCLUDED.category END,
@@ -143,7 +143,8 @@ try {
     system_version=CASE WHEN network_assets.manual_overrides ? 'system_version' THEN network_assets.system_version ELSE EXCLUDED.system_version END,
     power_on=CASE WHEN network_assets.manual_overrides ? 'power_on' THEN network_assets.power_on ELSE EXCLUDED.power_on END,
     config_lines=CASE WHEN network_assets.manual_overrides ? 'config_lines' THEN network_assets.config_lines ELSE EXCLUDED.config_lines END,
-    config_register=CASE WHEN network_assets.manual_overrides ? 'config_register' THEN network_assets.config_register ELSE EXCLUDED.config_register END,updated_at=now()
+    config_register=CASE WHEN network_assets.manual_overrides ? 'config_register' THEN network_assets.config_register ELSE EXCLUDED.config_register END,
+    data_origin=CASE WHEN network_assets.data_origin='IMPORTED' THEN 'IMPORTED' ELSE network_assets.data_origin END,updated_at=now()
     WHERE network_assets.source_id IS DISTINCT FROM EXCLUDED.source_id
        OR network_assets.source_data IS DISTINCT FROM EXCLUDED.source_data
        OR (NOT (network_assets.manual_overrides ? 'name') AND network_assets.name IS DISTINCT FROM EXCLUDED.name)
@@ -214,7 +215,8 @@ try {
    await client!.query(
     `INSERT INTO vlans(site_id,vlan_number,name,area,subnet,gateway,sensitivity,dhcp_pool_id,data_origin,source_row,extra)
      VALUES(NULL,$1,$2,$2,$3::cidr,$4::inet,$5,$6,'IMPORTED',$7,$8::jsonb)
-     ON CONFLICT DO UPDATE SET name=EXCLUDED.name,area=EXCLUDED.area,subnet=EXCLUDED.subnet,gateway=EXCLUDED.gateway,
+     ON CONFLICT ((COALESCE(site_id,'00000000-0000-0000-0000-000000000000'::uuid)),vlan_number)
+     DO UPDATE SET name=EXCLUDED.name,area=EXCLUDED.area,subnet=EXCLUDED.subnet,gateway=EXCLUDED.gateway,
        sensitivity=EXCLUDED.sensitivity,dhcp_pool_id=EXCLUDED.dhcp_pool_id,data_origin='IMPORTED',source_row=EXCLUDED.source_row,
        updated_at=now()
      WHERE NOT COALESCE((vlans.extra->>'user_edited')::boolean,FALSE)

@@ -18,6 +18,7 @@ Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ej
 | 10 | `09_Create_billing.sql` | Facturas y vista de antigüedad de cartera. |
 | 11 | `10_Alter_roles_and_origin.sql` | Roles PMO/técnico y origen de clientes/proyectos. |
 | 12 | `11_Create_auth_events_and_sessions.sql` | Eventos de login y sesiones persistibles (activación de sesiones en Fase 6). |
+| 13 | `12_Alter_network_assets_data_origin.sql` | Añade el origen del dato a activos para inventario y reportes. |
 | Demo | `90_Insert_DatosPrueba.sql` | Clientes, sede, proyecto, contrato e hitos sintéticos deterministas; invocado también por `seed:demo`. |
 
 El administrador inicial no se inserta con SQL. Se crea mediante el script TypeScript del backend para generar el hash seguro:
@@ -53,6 +54,8 @@ npm.cmd run seed:admin --prefix backend
 ```
 
 Tras revisar el reporte de validación, omite `--dry-run` para importar. Consulta [network-domain.md](../../docs/architecture/network-domain.md) para precedencia, normalización e incidencias esperadas.
+
+Las migraciones SQL crean el esquema; no cargan el inventario del proveedor ni el catálogo de monitoreo. Para que esas secciones tengan datos, importa `Data_para_Proveedor_ERP.xlsx` con `import:network` y `Equipos_Monitoreo_Red_5196.xlsx` con `import:catalog`.
 
 Si `psql` no se reconoce, usar la ruta completa al ejecutable instalado, por ejemplo:
 
