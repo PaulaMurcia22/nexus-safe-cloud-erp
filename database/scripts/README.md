@@ -10,12 +10,15 @@ Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ej
 | 2 | `01_Create_tb_users.sql` | Crea usuarios, roles, estados e indice de correo. |
 | 3 | `02_Create_tb_clients.sql` | Crea clientes B2B y unicidad del NIT normalizado. |
 | 4 | `03_Create_tb_projects.sql` | Crea proyectos y sus relaciones con clientes y usuarios. |
+| 5 | `04_Create_network_domain.sql` | Crea activos, interfaces, enlaces, DHCP/VLAN, controles, monitoreo y trazabilidad de importación. |
 
 El administrador inicial no se inserta con SQL. Se crea mediante el script TypeScript del backend para generar el hash seguro:
 
 ```powershell
 npm.cmd run seed:admin --prefix backend
 ```
+
+Antes de ejecutarlo, define `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12 caracteres), y opcionalmente `ADMIN_NAME`, en el entorno local. No hay credenciales predeterminadas.
 
 Consulta [02_seed_admin.md](02_seed_admin.md) para los detalles.
 
@@ -28,15 +31,18 @@ Consulta [02_seed_admin.md](02_seed_admin.md) para los detalles.
 
 ## Ejecucion con PowerShell
 
-El primer script debe ejecutarse conectado a una base administrativa porque PostgreSQL no permite `CREATE DATABASE` dentro de una transacción normal:
+El primer script debe ejecutarse conectado a una base administrativa. Usa `psql` porque el archivo emplea `\\gexec` para crear la base condicionalmente sin fijar un OWNER local; desde pgAdmin, crea la base manualmente solo si no existe:
 
 ```powershell
 psql -U postgres -d postgres -f .\database\scripts\00_create_database.sql
 psql -U postgres -d nexuserpm -f .\database\scripts\01_Create_tb_users.sql
 psql -U postgres -d nexuserpm -f .\database\scripts\02_Create_tb_clients.sql
 psql -U postgres -d nexuserpm -f .\database\scripts\03_Create_tb_projects.sql
+npm.cmd run import:network --prefix backend -- --file ..\data\Data_para_Proveedor_ERP.xlsx --dry-run
 npm.cmd run seed:admin --prefix backend
 ```
+
+Tras revisar el reporte de validación, omite `--dry-run` para importar. Consulta [network-domain.md](../../docs/architecture/network-domain.md) para precedencia, normalización e incidencias esperadas.
 
 Si `psql` no se reconoce, usar la ruta completa al ejecutable instalado, por ejemplo:
 
@@ -45,17 +51,6 @@ Si `psql` no se reconoce, usar la ruta completa al ejecutable instalado, por eje
 ```
 
 La ruta y la version de PostgreSQL pueden variar.
-
-## Reinicio manual de desarrollo
-
-No se eliminan datos desde los scripts versionados. Para empezar desde cero, conectarse manualmente a `postgres` y ejecutar solo si se acepta perder la informacion local:
-
-```sql
-DROP DATABASE IF EXISTS nexuserpm WITH (FORCE);
-CREATE DATABASE nexuserpm;
-```
-
-Luego repetir el orden de ejecucion completo.
 
 ## Convencion para nuevos scripts
 

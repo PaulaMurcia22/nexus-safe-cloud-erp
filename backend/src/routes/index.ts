@@ -1,5 +1,6 @@
-import { Router } from 'express'; import { pool, checkDatabase } from '../config/database.js'; import * as clients from '../controllers/client.controller.js'; import * as projects from '../controllers/project.controller.js'; import * as auth from '../controllers/auth.controller.js'; import * as users from '../controllers/user.controller.js'; import {requireAuth,requireRoles} from '../shared/auth.js'; import {asyncHandler} from '../middlewares/errors.js';
+import { Router } from 'express'; import { checkDatabase } from '../config/database.js'; import * as clients from '../controllers/client.controller.js'; import * as projects from '../controllers/project.controller.js'; import * as auth from '../controllers/auth.controller.js'; import * as users from '../controllers/user.controller.js'; import {requireAuth,requireRoles} from '../shared/auth.js'; import {asyncHandler} from '../middlewares/errors.js'; import { networkRouter } from '../modules/network/routes.js';
 export const router=Router();
+router.use('/network',networkRouter);
 router.get('/health',(_req,res)=>res.json({status:'ok'})); router.get('/health/db',async(_req,res)=>{await checkDatabase();res.json({status:'ok'});});
 router.post('/auth/login',asyncHandler(auth.login)); router.get('/auth/me',auth.me); router.post('/auth/logout',auth.logout);
 router.get('/users',requireRoles('ADMIN'),asyncHandler(users.list)); router.post('/users',requireRoles('ADMIN'),asyncHandler(users.create)); router.put('/users/:id',requireRoles('ADMIN'),asyncHandler(users.update));
