@@ -66,3 +66,6 @@ CREATE TABLE IF NOT EXISTS public.project_milestones (
 
 CREATE INDEX IF NOT EXISTS ix_work_orders_assignment ON public.work_orders(assigned_user_id, status);
 CREATE INDEX IF NOT EXISTS ix_time_entries_order_date ON public.time_entries(work_order_id, entry_date);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_time_entries_synthetic_identity
+  ON public.time_entries(work_order_id,user_id,entry_date,description)
+  WHERE data_origin='SYNTHETIC';

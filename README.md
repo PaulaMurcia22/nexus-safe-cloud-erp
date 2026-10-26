@@ -112,6 +112,8 @@ npm run seed:admin --prefix backend
 
 Define `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ADMIN_NAME` en el entorno local antes de ejecutar el seed. El seed genera un hash con `crypto.scrypt` y no restablece la contraseña de una cuenta existente.
 
+Para cargar la información sintética de la demostración, importa previamente los dos Excel válidos, define `DEMO_USERS_PASSWORD` con al menos 12 caracteres y ejecuta `npm run seed:demo --prefix backend -- --dry-run`; después ejecuta el mismo comando sin `--dry-run`. El seed asigna los 76 activos mediante la operación auditada de red. Para eliminar solo los registros sintéticos y limpiar esa asignación auditadamente, ejecuta `npm run seed:demo --prefix backend -- --reset-synthetic --confirm`. Nunca imprime la contraseña.
+
 ### Con pgAdmin
 
 1. Abrir `00_create_database.sql` conectado a `postgres` y ejecutarlo.

@@ -14,4 +14,5 @@
 | S-10 | Servicios electrónicos se simulan en el MVP. | Estado `SIMULATED_ACCEPTED` significa simulación técnica, no aceptación DIAN ni factura electrónica legal. |
 | S-11 | La distribución de los tres hitos y ejemplos de órdenes, horas y facturas se crea determinísticamente para demo. | Todas las filas creadas por seed deben ser `SYNTHETIC`; el periodo de horas queda fijado al rango solicitado alrededor de 2026-10-25. |
 | S-12 | La tabla de catálogo complementa, pero no sustituye, los ocho registros de tecnologías de la hoja 07. | Mantener ambas fuentes diferenciadas: catálogo de señales importado desde el segundo archivo y tecnologías fuente del primer archivo. |
+| S-13 | Se crean dos usuarios `TECHNICIAN` porque la demo requiere probar asignación de trabajo entre dos técnicos, aunque la lista de roles pide un usuario por rol. | Ambos son sintéticos, usan correos `demo.invalid` y comparten la contraseña local `DEMO_USERS_PASSWORD`, sin que el script revele su valor. |
 

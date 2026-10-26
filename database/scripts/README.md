@@ -18,6 +18,7 @@ Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ej
 | 10 | `09_Create_billing.sql` | Facturas y vista de antigüedad de cartera. |
 | 11 | `10_Alter_roles_and_origin.sql` | Roles PMO/técnico y origen de clientes/proyectos. |
 | 12 | `11_Create_auth_events_and_sessions.sql` | Eventos de login y sesiones persistibles (activación de sesiones en Fase 6). |
+| Demo | `90_Insert_DatosPrueba.sql` | Clientes, sede, proyecto, contrato e hitos sintéticos deterministas; invocado también por `seed:demo`. |
 
 El administrador inicial no se inserta con SQL. Se crea mediante el script TypeScript del backend para generar el hash seguro:
 
@@ -28,6 +29,8 @@ npm.cmd run seed:admin --prefix backend
 Antes de ejecutarlo, define `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12 caracteres), y opcionalmente `ADMIN_NAME`, en el entorno local. No hay credenciales predeterminadas.
 
 Consulta [README_seed_admin.md](README_seed_admin.md) para los detalles.
+
+Para crear el conjunto sintético completo, importa antes los dos Excel válidos y define `DEMO_USERS_PASSWORD` localmente (mínimo 12 caracteres). Ejecuta `npm run seed:demo --prefix backend -- --dry-run` para previsualizar y luego `npm run seed:demo --prefix backend`. El reinicio requiere `npm run seed:demo --prefix backend -- --reset-synthetic --confirm`; solo elimina filas `SYNTHETIC` y limpia con auditoría la asignación demo de activos importados.
 
 ## Prerrequisitos
 

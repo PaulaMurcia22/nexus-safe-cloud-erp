@@ -1,5 +1,6 @@
 ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS data_origin VARCHAR(10) NOT NULL DEFAULT 'MANUAL';
 ALTER TABLE public.projects ADD COLUMN IF NOT EXISTS data_origin VARCHAR(10) NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS data_origin VARCHAR(10) NOT NULL DEFAULT 'MANUAL';
 
 DO $$
 DECLARE constraint_row RECORD;
@@ -37,5 +38,8 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.projects'::regclass AND conname='ck_projects_data_origin') THEN
     ALTER TABLE public.projects ADD CONSTRAINT ck_projects_data_origin CHECK (data_origin IN ('IMPORTED','SYNTHETIC','MANUAL'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.users'::regclass AND conname='ck_users_data_origin') THEN
+    ALTER TABLE public.users ADD CONSTRAINT ck_users_data_origin CHECK (data_origin IN ('IMPORTED','SYNTHETIC','MANUAL'));
   END IF;
 END $$;
