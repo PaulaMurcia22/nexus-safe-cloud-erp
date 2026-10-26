@@ -5,3 +5,26 @@ export const api={login:(d:unknown)=>request<{user:User}>('/auth/login',{method:
 export interface PageResult<T>{items:T[];total:number;page:number;pageSize:number}
 const paged=(resource:string,search:string,page:number,pageSize:number)=>request<PageResult<unknown>>(`/${resource}?${new URLSearchParams({...(search?{search}:{}),page:String(page),pageSize:String(pageSize)})}`);
 export const pagedApi={users:(search:string,page:number,pageSize=20)=>paged('users',search,page,pageSize) as Promise<PageResult<User>>,clients:(search:string,page:number,pageSize=20)=>paged('clients',search,page,pageSize) as Promise<PageResult<Client>>,projects:(status:string,page:number,pageSize=20)=>request<PageResult<Project>>(`/projects?${new URLSearchParams({...(status?{status}:{}),page:String(page),pageSize:String(pageSize)})}`)};
+
+export const managedApi={
+  clientOverview:(id:string)=>request<Record<string,any>>(`/clients/${id}/overview`),
+  contracts:()=>request<{items:Array<Record<string,any>>}>('/service-contracts'),
+  contract:(id:string)=>request<Record<string,any>>(`/service-contracts/${id}`),
+  createContract:(d:unknown)=>request<Record<string,any>>('/service-contracts',{method:'POST',body:JSON.stringify(d)}),
+  findings:(q='')=>request<{items:Array<Record<string,any>>}>(`/findings${q?`?${q}`:''}`),
+  generateFindings:(contractId:string)=>request<{created:number}>('/findings/generate?contractId='+encodeURIComponent(contractId),{method:'POST'}),
+  setFindingStatus:(id:string,status:string)=>request<Record<string,any>>(`/findings/${id}/status`,{method:'PATCH',body:JSON.stringify({status})}),
+  createWorkOrder:(id:string)=>request<Record<string,any>>(`/findings/${id}/work-order`,{method:'POST'}),
+  workOrders:()=>request<{items:Array<Record<string,any>>}>('/work-orders'),
+  updateWorkStatus:(id:string,status:string)=>request<Record<string,any>>(`/work-orders/${id}/status`,{method:'PATCH',body:JSON.stringify({status})}),
+  addTime:(id:string,d:unknown)=>request<Record<string,any>>(`/work-orders/${id}/time-entries`,{method:'POST',body:JSON.stringify(d)}),
+  invoices:()=>request<{items:Array<Record<string,any>>}>('/billing/invoices'),
+  aging:()=>request<{items:Array<Record<string,any>>}>('/billing/aging'),
+  milestones:()=>request<{items:Array<Record<string,any>>}>('/billing/milestones'),
+  closeMilestone:(id:string)=>request<Record<string,any>>(`/billing/milestones/${id}/close`,{method:'POST'}),
+  issueInvoice:(id:string,dueDate:string)=>request<Record<string,any>>(`/billing/invoices/${id}/issue`,{method:'POST',body:JSON.stringify({dueDate,taxRate:0})}),
+  payInvoice:(id:string)=>request<Record<string,any>>(`/billing/invoices/${id}/pay`,{method:'POST',body:JSON.stringify({})}),
+  impact:(assetId:string)=>request<{impactedAssetIds:string[]}>(`/network/assets/${assetId}/impact`),
+  topology:()=>request<{nodes:Array<Record<string,any>>;edges:Array<Record<string,any>>}>('/network/topology'),
+  async download(resource:'assets'|'findings'|'receivables'){const r=await fetch(`${base}/reports/${resource}.xlsx`,{credentials:'include'});if(!r.ok)throw new Error('No fue posible exportar el reporte.');return r.blob();},
+};
