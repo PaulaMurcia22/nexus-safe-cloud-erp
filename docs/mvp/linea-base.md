@@ -35,3 +35,7 @@ Criticidad de activos: CRITICAL 5, HIGH 5, MEDIUM 66. Controles configurados seg
 
 `git ls-files` no encontró `.env`, `node_modules`, `dist` ni `.DS_Store` versionados. En el directorio de trabajo sí existen `frontend/tsconfig.tsbuildinfo` y archivos temporales Excel `~$...`; la captura inicial no los alteró. La dependencia local `nexus-erp: file:..` existe en los dos `package.json`; se analizará en la Fase 0 antes de decidir si se conserva.
 
+## Restricciones presentes en PostgreSQL
+
+Se ejecutó una consulta de solo lectura a `information_schema.table_constraints`/`pg_constraint` en `nexuserpm`. La base local tiene `users_role_check`, `projects_service_type_check`, `uq_projects_code`, `uq_clients_nit_normalized` y las restricciones restantes autogeneradas por PostgreSQL. Aún no tiene las tablas `sites` ni `network_assets`, por lo que no fue posible consultar las restricciones de `sites` allí. El script 05 descubre dinámicamente por definición cualquier check de códigos fijos y unique simple de `code`; no presupone el nombre autogenerado. La segunda consulta falló al intentar convertir `sites` a regclass porque la relación no existe. No se aplicaron cambios a esa base.
+
