@@ -1,0 +1,2 @@
+import {pool} from '../../config/database.js';
+export function list(status?:string,severity?:string){return pool.query(`SELECT f.*,a.name AS asset_name,a.serial_normalized,a.criticality FROM findings f JOIN network_assets a ON a.id=f.asset_id WHERE ($1::text IS NULL OR f.status=$1) AND ($2::text IS NULL OR f.severity=$2) ORDER BY CASE f.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,f.detected_at DESC`,[status??null,severity??null]);}

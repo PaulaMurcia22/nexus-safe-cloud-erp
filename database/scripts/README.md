@@ -10,6 +10,16 @@ Estos scripts crean la base local de PostgreSQL para Nexus Safe-Cloud ERP. Se ej
 | 2 | `01_Create_tb_users.sql` | Crea usuarios, roles, estados e indice de correo. |
 | 3 | `02_Create_tb_clients.sql` | Crea clientes B2B y unicidad del NIT normalizado. |
 | 4 | `03_Create_tb_projects.sql` | Crea proyectos y sus relaciones con clientes y usuarios. |
+| 5 | `04_Create_network_domain.sql` | Crea activos, interfaces, enlaces, DHCP/VLAN, controles, monitoreo y trazabilidad de importación. |
+| 6 | `05_Alter_sites_customer_scope.sql` | Amplía `sites` para oficinas internas y sitios de clientes; incorpora origen. |
+| 7 | `06_Create_vlans.sql` | VLAN explícitas y membresía activo-VLAN. |
+| 8 | `07_Create_monitoring_catalog_and_contracts.sql` | Catálogo de señales, mapeo de activos, contratos y alcance. |
+| 9 | `08_Create_findings_and_work.sql` | Hallazgos, órdenes, horas y hitos. |
+| 10 | `09_Create_billing.sql` | Facturas y vista de antigüedad de cartera. |
+| 11 | `10_Alter_roles_and_origin.sql` | Roles PMO/técnico y origen de clientes/proyectos. |
+| 12 | `11_Create_auth_events_and_sessions.sql` | Eventos de login y sesiones persistibles (activación de sesiones en Fase 6). |
+| 13 | `12_Alter_network_assets_data_origin.sql` | Añade el origen del dato a activos para inventario y reportes. |
+| Demo | `90_Insert_DatosPrueba.sql` | Clientes, sede, proyecto, contrato e hitos sintéticos deterministas; invocado también por `seed:demo`. |
 
 El administrador inicial no se inserta con SQL. Se crea mediante el script TypeScript del backend para generar el hash seguro:
 
@@ -17,7 +27,11 @@ El administrador inicial no se inserta con SQL. Se crea mediante el script TypeS
 npm.cmd run seed:admin --prefix backend
 ```
 
-Consulta [02_seed_admin.md](02_seed_admin.md) para los detalles.
+Antes de ejecutarlo, define `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12 caracteres), y opcionalmente `ADMIN_NAME`, en el entorno local. No hay credenciales predeterminadas.
+
+Consulta [README_seed_admin.md](README_seed_admin.md) para los detalles.
+
+Para crear el conjunto sintético completo, importa antes los dos Excel válidos y define `DEMO_USERS_PASSWORD` localmente (mínimo 12 caracteres). Ejecuta `npm run seed:demo --prefix backend -- --dry-run` para previsualizar y luego `npm run seed:demo --prefix backend`. El reinicio requiere `npm run seed:demo --prefix backend -- --reset-synthetic --confirm`; solo elimina filas `SYNTHETIC` y limpia con auditoría la asignación demo de activos importados.
 
 ## Prerrequisitos
 
@@ -28,15 +42,20 @@ Consulta [02_seed_admin.md](02_seed_admin.md) para los detalles.
 
 ## Ejecucion con PowerShell
 
-El primer script debe ejecutarse conectado a una base administrativa porque PostgreSQL no permite `CREATE DATABASE` dentro de una transacción normal:
+El primer script debe ejecutarse conectado a una base administrativa. Usa `psql` porque el archivo emplea `\\gexec` para crear la base condicionalmente sin fijar un OWNER local; desde pgAdmin, crea la base manualmente solo si no existe:
 
 ```powershell
 psql -U postgres -d postgres -f .\database\scripts\00_create_database.sql
 psql -U postgres -d nexuserpm -f .\database\scripts\01_Create_tb_users.sql
 psql -U postgres -d nexuserpm -f .\database\scripts\02_Create_tb_clients.sql
 psql -U postgres -d nexuserpm -f .\database\scripts\03_Create_tb_projects.sql
+npm.cmd run import:network --prefix backend -- --file ..\data\Data_para_Proveedor_ERP.xlsx --dry-run
 npm.cmd run seed:admin --prefix backend
 ```
+
+Tras revisar el reporte de validación, omite `--dry-run` para importar. Consulta [network-domain.md](../../docs/architecture/network-domain.md) para precedencia, normalización e incidencias esperadas.
+
+Las migraciones SQL crean el esquema; no cargan el inventario del proveedor ni el catálogo de monitoreo. Para que esas secciones tengan datos, importa `Data_para_Proveedor_ERP.xlsx` con `import:network` y `Equipos_Monitoreo_Red_5196.xlsx` con `import:catalog`.
 
 Si `psql` no se reconoce, usar la ruta completa al ejecutable instalado, por ejemplo:
 
@@ -46,21 +65,10 @@ Si `psql` no se reconoce, usar la ruta completa al ejecutable instalado, por eje
 
 La ruta y la version de PostgreSQL pueden variar.
 
-## Reinicio manual de desarrollo
-
-No se eliminan datos desde los scripts versionados. Para empezar desde cero, conectarse manualmente a `postgres` y ejecutar solo si se acepta perder la informacion local:
-
-```sql
-DROP DATABASE IF EXISTS nexuserpm WITH (FORCE);
-CREATE DATABASE nexuserpm;
-```
-
-Luego repetir el orden de ejecucion completo.
-
 ## Convencion para nuevos scripts
 
 - Usar dos digitos iniciales y el siguiente numero disponible.
-- Describir la operacion y el objeto: `04_Create_ix_projects_status.sql`, `05_Alter_tb_clients.sql`.
+- Describir la operacion y el objeto: `12_Create_ix_projects_status.sql`, `13_Alter_tb_clients.sql`.
 - No reutilizar numeros ni renombrar scripts ya compartidos.
 - Incluir comentarios sobre proposito, prerrequisitos y posibles efectos.
 - Usar PostgreSQL y restricciones justificadas: `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, `CHECK` e indices.
