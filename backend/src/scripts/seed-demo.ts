@@ -32,22 +32,28 @@ async function audit(action: string, entity: string, id: string, after: unknown)
 async function resetSynthetic() {
   if (!confirmed) throw new Error('El reinicio requiere --reset-synthetic --confirm.');
   if (dryRun) {
-    const counts = await pool.query(`SELECT 'synthetic' AS group_name, count(*)::int AS count FROM (
-      SELECT id FROM clients WHERE data_origin='SYNTHETIC'
-      UNION ALL SELECT id FROM projects WHERE data_origin='SYNTHETIC'
-      UNION ALL SELECT id FROM service_contracts WHERE data_origin='SYNTHETIC'
-      UNION ALL SELECT id FROM findings WHERE data_origin='SYNTHETIC'
-      UNION ALL SELECT id FROM work_orders WHERE data_origin='SYNTHETIC'
-      UNION ALL SELECT id FROM time_entries WHERE data_origin='SYNTHETIC'
-      UNION ALL SELECT id FROM invoices WHERE data_origin='SYNTHETIC'
-    ) s`);
-    console.log(`Dry-run de reinicio: ${counts.rows[0].count} registros sintéticos contabilizados; no se modificó la base.`);
+    const tables=['clients','sites','projects','users','service_contracts','contract_scope_items','findings','work_orders','time_entries','project_milestones','invoices'];
+    const counts=await Promise.all(tables.map(async(table)=>[table,(await pool.query(`SELECT count(*)::int AS n FROM ${table} WHERE data_origin='SYNTHETIC'`)).rows[0].n] as const));
+    console.log(`Dry-run de reinicio: ${counts.map(([table,count])=>`${table}=${count}`).join(', ')}; no se modificó la base.`);
     return;
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const manualDependencies=await client.query(`SELECT COUNT(*)::int AS count FROM (
+      SELECT id FROM service_contracts WHERE data_origin<>'SYNTHETIC' AND (customer_id=$1 OR site_id=$2)
+      UNION ALL SELECT id FROM projects WHERE data_origin<>'SYNTHETIC' AND customer_id=$1
+      UNION ALL SELECT id FROM findings WHERE data_origin<>'SYNTHETIC' AND contract_id=$3
+      UNION ALL SELECT id FROM work_orders WHERE data_origin<>'SYNTHETIC' AND (customer_id=$1 OR site_id=$2 OR contract_id=$3 OR project_id=$4)
+      UNION ALL SELECT id FROM invoices WHERE data_origin<>'SYNTHETIC' AND customer_id=$1
+      UNION ALL SELECT id FROM contract_scope_items WHERE data_origin<>'SYNTHETIC' AND contract_id=$3
+      UNION ALL SELECT m.id FROM project_milestones m JOIN projects p ON p.id=m.project_id WHERE m.data_origin<>'SYNTHETIC' AND p.id=$4
+    ) dependencies`,[demoCustomerId,demoSiteId,demoContractId,demoProjectId]);
+    if(manualDependencies.rows[0].count>0)throw new Error('El reinicio se detuvo: hay filas no sintéticas que dependen de registros demo. No se modificó la base.');
+    const importedTables=['import_batches','import_issues','network_assets','network_links','asset_controls','asset_interfaces','asset_ip_addresses','dhcp_pools','vlans','asset_vlan_membership','monitoring_technologies','monitoring_signal_catalog','catalog_type_mapping'];
+    const importedBefore=new Map<string,number>();
+    for(const table of importedTables){const hasOrigin=['vlans','asset_vlan_membership','monitoring_signal_catalog','catalog_type_mapping','clients','projects'].includes(table);const where=hasOrigin?` WHERE data_origin='IMPORTED'`:'';const result=await client.query(`SELECT count(*)::int AS n FROM ${table}${where}`);importedBefore.set(table,result.rows[0].n);}
     const assignments = await client.query(
       `SELECT id,site_id,customer_id,project_id FROM network_assets
        WHERE site_id=$1 OR customer_id=$2 OR project_id=$3`,
@@ -68,8 +74,9 @@ async function resetSynthetic() {
     for (const table of ['invoices', 'time_entries', 'work_orders', 'findings', 'contract_scope_items', 'project_milestones', 'service_contracts', 'projects', 'sites', 'clients', 'users']) {
       await client.query(`DELETE FROM ${table} WHERE data_origin='SYNTHETIC'`);
     }
+    for(const table of importedTables){const hasOrigin=['vlans','asset_vlan_membership','monitoring_signal_catalog','catalog_type_mapping'].includes(table);const where=hasOrigin?` WHERE data_origin='IMPORTED'`:'';const result=await client.query(`SELECT count(*)::int AS n FROM ${table}${where}`);if(result.rows[0].n!==importedBefore.get(table))throw new Error(`El conteo importado cambió en ${table}; se revierte el reinicio.`);}
     await client.query('COMMIT');
-    console.log('Filas sintéticas eliminadas; las asignaciones de activos importados se limpiaron con auditoría.');
+    console.log(`Filas sintéticas eliminadas; asignaciones limpiadas con auditoría. Conteos importados antes/después conservados: ${[...importedBefore].map(([table,count])=>`${table}=${count}`).join(', ')}.`);
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

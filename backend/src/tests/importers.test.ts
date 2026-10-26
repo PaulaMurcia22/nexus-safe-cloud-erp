@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs';
 import path from 'node:path';
 import { catalogCategoryKey, normalizeCatalogPriority } from '../scripts/catalog-normalizers.js';
 import { mapAssetToCatalog } from '../scripts/catalog-type-mapping.js';
+import { normalizeBoolean } from '../scripts/network-normalizers.js';
 
 test('monitoring catalog source reconciles 21 types, 6/6/9 categories and 11/8/2 priorities', async () => {
   const workbook = new ExcelJS.Workbook();
@@ -44,6 +45,8 @@ test('five custom IoT links have blank functional values and must stay unknown',
     if (String(row.getCell(8).value ?? '').trim() === '') unknownCustomLinks.push(rowNumber);
   }
   assert.equal(unknownCustomLinks.length, 5);
+  assert.equal(normalizeBoolean(''), null);
+  assert.equal(normalizeBoolean('No'), false);
 });
 
 test('asset catalog mapping uses explicit roles and leaves ambiguous IoT unmapped', () => {

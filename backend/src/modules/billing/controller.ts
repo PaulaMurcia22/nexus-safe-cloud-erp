@@ -1,8 +1,9 @@
-import type {Request,Response} from 'express';import {pool} from '../../config/database.js';import * as service from './service.js';import {id,issue,payment} from './schemas.js';
+import type {Request,Response} from 'express';import {pool} from '../../config/database.js';import * as service from './service.js';import {id,issue,payment,milestone} from './schemas.js';
 const parse=(s:any,v:unknown)=>{const r=s.safeParse(v);if(!r.success)throw Object.assign(new Error('Datos inválidos.'),{status:400});return r.data;};const actor=(res:Response)=>(res.locals.user as {id:string}).id;
 export async function list(_req:Request,res:Response){res.json({items:(await pool.query(`SELECT i.*,c.legal_name AS customer_name FROM invoices i JOIN clients c ON c.id=i.customer_id ORDER BY i.issue_date DESC`)).rows});}
 export async function aging(_req:Request,res:Response){res.json({items:(await pool.query(`SELECT * FROM v_receivables_aging ORDER BY customer_name`)).rows});}
 export async function milestones(_req:Request,res:Response){res.json({items:(await pool.query(`SELECT m.*,p.name AS project_name FROM project_milestones m JOIN projects p ON p.id=m.project_id ORDER BY m.created_at DESC`)).rows});}
+export async function createMilestone(req:Request,res:Response){res.status(201).json(await service.createMilestone(parse(milestone,req.body),actor(res)));}
 export async function close(req:Request,res:Response){const result=await service.closeMilestone(parse(id,req.params.id),actor(res));if(!result)return res.status(404).json({error:'Hito no encontrado.'});res.status(201).json(result);}
 export async function issueInvoice(req:Request,res:Response){const d=parse(issue,req.body),result=await service.issueInvoice(parse(id,req.params.id),d.dueDate,d.taxRate,actor(res));if(!result)return res.status(404).json({error:'Factura no encontrada.'});res.json(result);}
 export async function pay(req:Request,res:Response){const d=parse(payment,req.body),result=await service.payInvoice(parse(id,req.params.id),d.paidAt,actor(res));if(!result)return res.status(404).json({error:'Factura no encontrada.'});res.json(result);}

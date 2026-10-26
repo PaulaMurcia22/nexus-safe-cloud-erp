@@ -5,14 +5,14 @@ ERP web modular para Nexus Safe-Cloud, desarrollado por AST Solutions. El MVP ac
 ## Alcance actual
 
 - Inicio y cierre de sesion con cookie HTTP.
-- Roles actualmente implementados: `ADMIN`, `MANAGEMENT`, `COMMERCIAL`, `FINANCE` e `IT_OPERATIONS`.
+- Roles implementados: `ADMIN`, `MANAGEMENT`, `COMMERCIAL`, `FINANCE`, `IT_OPERATIONS`, `PMO` y `TECHNICIAN`.
 - Gestion de usuarios para administradores.
 - Clientes B2B (empresas u organizaciones) identificados por NIT normalizado.
 - Proyectos asociados obligatoriamente a un cliente activo.
 - Dashboard con indicadores y filtro de proyectos.
 - API REST con validacion, autorizacion, consultas parametrizadas y manejo centralizado de errores.
 
-El catálogo de monitoreo procede de un segundo Excel válido. Contratos, hallazgos, órdenes, tiempo, facturación, cartera, RBAC extendido y eventos de autenticación son parte del alcance de cierre, y se marcarán como parciales hasta implementarse. MFA/SSO/ZTNA corporativos, DIAN real, disponibilidad de red en vivo, recursos predictivos y otras capacidades no demostrables con las fuentes disponibles se declaran diferidos. La importación se realiza por CLI, no desde la web.
+El catálogo de monitoreo procede del segundo Excel válido. El corte vertical incluye contratos y alcance, hallazgos, órdenes y horas, hitos, facturación simulada, cartera, permisos por rol, eventos de login y exportación Excel. MFA/SSO/ZTNA corporativos, DIAN real, disponibilidad de red en vivo, recursos predictivos, PDF y otras capacidades que requieren proveedores o datos adicionales están declaradas como diferidas. La importación se realiza por CLI, no desde la web.
 
 ### Origen y alcance de los datos
 
@@ -126,6 +126,14 @@ Los scripts usan `IF NOT EXISTS` en los objetos principales, pero deben ejecutar
 ## Administrador inicial
 
 No hay credenciales predeterminadas en el repositorio. Configura las variables de bootstrap localmente, usa una cuenta individual y no incluyas secretos en archivos versionados.
+
+## Demostración y verificación
+
+- Guion del corte vertical: [docs/mvp/guion-demo.md](docs/mvp/guion-demo.md).
+- Supuestos y trazabilidad: [docs/mvp/supuestos.md](docs/mvp/supuestos.md) y [docs/mvp/matriz-trazabilidad.md](docs/mvp/matriz-trazabilidad.md).
+- Compilar y probar: `npm run build --prefix backend`, `npm test --prefix backend` y `npm run build --prefix frontend`.
+- Las pruebas del grafo usan grafos pequeños y los 76 activos/74 enlaces del Excel válido; las reglas puras cubren cartera, horas, aplicabilidad e importación.
+- Aplicar migraciones dos veces y ejecutar pruebas de integración de escritura requiere una base PostgreSQL vacía y separada de la base local existente. No apuntes esos comandos a una base con datos que quieras conservar.
 
 ## Ejecutar la aplicacion
 

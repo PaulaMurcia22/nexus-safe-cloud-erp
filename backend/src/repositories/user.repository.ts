@@ -1,5 +1,5 @@
 import {pool} from '../config/database.js'; import type {Role} from '../shared/auth.js';
-const projection=`SELECT id,name,email,role,status,created_at AS "createdAt",updated_at AS "updatedAt" FROM users`;
+const projection=`SELECT id,name,email,role,status,data_origin AS "dataOrigin",created_at AS "createdAt",updated_at AS "updatedAt" FROM users`;
 export async function findByEmail(email:string){return (await pool.query(`SELECT id,name,email,role,status,password_hash AS "passwordHash" FROM users WHERE email=lower($1)`,[email])).rows[0]??null;}
 export async function findById(id:string){return (await pool.query(`SELECT id,role,status FROM users WHERE id=$1`,[id])).rows[0]??null;}
 export async function list(search?:string){return (await pool.query(`${projection} ${search?'WHERE name ILIKE $1 OR email ILIKE $1':''} ORDER BY name`,search?[`%${search}%`]:[])).rows;}
