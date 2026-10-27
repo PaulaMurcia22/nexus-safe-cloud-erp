@@ -1,73 +1,70 @@
 # Nexus Safe-Cloud ERP
 
-ERP web modular para Nexus Safe-Cloud, desarrollado por AST Solutions. El MVP académico implementa el inicio del corte vertical de servicio gestionado: cliente y sitio, inventario técnico, contratos/alcance, hallazgos, órdenes y horas, hitos, facturación y cartera se completarán por fases. La decisión de representar el centro de salud como cliente gestionado es un supuesto académico, no un dato del Excel; ver [ADR-0001](docs/architecture/adr-0001-opcion-c-servicio-gestionado.md).
+ERP modular para Nexus Safe-Cloud, desarrollado por AST Solutions. Incluye gestión comercial, proyectos, contratos, operación de red, facturación, compras, contabilidad gerencial y equipo.
 
-## Alcance actual
+> **Antes de comenzar:** estos pasos están pensados para una persona que instala o actualiza el ERP en un computador. Necesitas acceso a PostgreSQL y una contraseña para el usuario administrador. No compartas ni publiques las contraseñas.
 
-- Inicio y cierre de sesion con cookie HTTP.
-- Roles implementados: `ADMIN`, `MANAGEMENT`, `COMMERCIAL`, `FINANCE`, `IT_OPERATIONS`, `PMO` y `TECHNICIAN`.
-- Gestion de usuarios para administradores.
-- Clientes B2B (empresas u organizaciones) identificados por NIT normalizado.
-- Proyectos asociados obligatoriamente a un cliente activo.
-- Dashboard con indicadores y filtro de proyectos.
-- API REST con validacion, autorizacion, consultas parametrizadas y manejo centralizado de errores.
+## 1. Instalación nueva, paso a paso
 
-El catálogo de monitoreo procede del segundo Excel válido. El corte vertical incluye contratos y alcance, hallazgos, órdenes y horas, hitos, facturación simulada, cartera, permisos por rol, eventos de login y exportación Excel. MFA/SSO/ZTNA corporativos, DIAN real, disponibilidad de red en vivo, recursos predictivos, PDF y otras capacidades que requieren proveedores o datos adicionales están declaradas como diferidas. La importación se realiza por CLI, no desde la web.
+Sigue esta sección solamente si todavía no tienes una base de datos del ERP con información que quieras conservar. Si ya existe una instalación, ve a [2. Actualizar desde una versión anterior](#2-actualizar-desde-una-versión-anterior).
 
-### Origen y alcance de los datos
+### Qué necesitas
 
-| Fuente / registro | Qué representa | Origen |
-|---|---|---|
-| `Data_para_Proveedor_ERP.xlsx` | Inventario, enlaces, interfaces, VLAN/pools y controles de un centro de salud | Real importado; no identifica cliente ni sitio |
-| `Equipos_Monitoreo_Red_5196.xlsx` | Catálogo de 21 tipos de equipo, señales y protocolos | Real importado |
-| Cliente gestionado, sede, contrato, proyectos, trabajo y finanzas de demo | Datos deterministas creados para demostrar el flujo | Sintético, siempre identificado como tal |
-| `Datos_PacketTracer.xlsx` | Contradice el plan de direccionamiento del Excel válido | Descartado; no importar ni modelar |
-| `captura_tcp-2_Grupo_Eventos_Temporales.xlsx` | Captura ajena al dominio y con contenido potencialmente sensible | Descartado; no importar ni modelar |
+- Un computador con Windows, macOS o Linux.
+- Node.js 22 y npm. npm se instala junto con Node.js.
+- PostgreSQL instalado y en ejecución.
+- La contraseña del usuario de PostgreSQL (normalmente `postgres`).
+- Este repositorio descargado y abierto en una terminal.
+- `psql` (herramienta incluida con PostgreSQL) o pgAdmin.
 
-Los dos Excel válidos no contienen clientes, contratos, horas ni facturas. Los datos sintéticos no deben presentarse como registros reales.
+Para comprobar Node.js, npm y `psql`, abre una terminal y ejecuta:
 
-## Arquitectura
-
-El proyecto utiliza un monolito modular con frontend y backend separados:
-
-- `frontend/`: React, TypeScript, Vite y React Router.
-- `backend/`: Node.js, TypeScript, Express y PostgreSQL.
-- `database/scripts/`: scripts SQL versionados para crear la base y sus tablas.
-- `docs/`: documentacion funcional y de arquitectura.
-
-El frontend nunca se conecta directamente a PostgreSQL. Todas las operaciones pasan por la API del backend.
-
-## Requisitos previos
-
-- Windows y PowerShell.
-- Node.js compatible; durante la configuracion actual se verifico Node `v22.23.1`.
-- npm, disponible como `npm` en PowerShell.
-- PostgreSQL local en ejecucion.
-- `psql` o pgAdmin para crear la base y ejecutar los scripts.
-
-Comprobar Node, npm y PostgreSQL:
-
-```powershell
+```text
 node --version
 npm --version
 psql --version
 ```
 
-## Instalacion
+Si alguno responde que el comando no existe, instala el programa correspondiente o solicita ayuda a quien administra tu computador. En macOS, Terminal está en Aplicaciones > Utilidades. En Windows, abre PowerShell desde el menú Inicio.
 
-Desde la raiz del repositorio:
+### Paso 1: abre la carpeta del proyecto
 
-```powershell
-npm run install:all
+En la terminal, entra a la carpeta principal del proyecto, la que contiene `README.md`, `backend`, `frontend` y `database`. Por ejemplo:
+
+```text
+cd ruta/a/nexus-safe-cloud-erp
 ```
 
-Crear la configuracion local:
+En Windows puedes abrir la carpeta en el Explorador, hacer clic en la barra de dirección, escribir `powershell` y pulsar Enter. Así PowerShell quedará ubicado en la carpeta correcta.
+
+### Paso 2: instala las dependencias
+
+Ejecuta estos dos comandos desde la carpeta principal. Espera a que termine el primero antes de ejecutar el segundo:
+
+```text
+npm install --prefix backend
+npm install --prefix frontend
+```
+
+La primera instalación puede tardar unos minutos y necesita conexión a internet. Si pregunta si deseas continuar, acepta.
+
+### Paso 3: crea la configuración local
+
+Crea una copia del archivo de ejemplo con el nombre `backend/.env`.
+
+**Windows PowerShell:**
 
 ```powershell
 Copy-Item .env.example backend/.env
 ```
 
-Editar `backend/.env` con los datos locales de PostgreSQL:
+**macOS o Linux:**
+
+```bash
+cp .env.example backend/.env
+```
+
+Abre `backend/.env` con un editor de texto y completa, como mínimo, estos datos:
 
 ```env
 NODE_ENV=development
@@ -77,152 +74,188 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=nexuserpm
 DB_USER=postgres
-DB_PASSWORD=la_contraseña_local_de_postgres
+DB_PASSWORD=CONTRASEÑA_DE_POSTGRESQL
+ADMIN_EMAIL=tu-correo@empresa.com
+ADMIN_PASSWORD=UNA_CONTRASEÑA_DE_12_CARACTERES_O_MAS
+ADMIN_NAME=Tu nombre
 ```
 
-No subir `backend/.env` ni colocar contraseñas reales en el repositorio.
+Reemplaza los valores de ejemplo. `DB_PASSWORD` es la contraseña de PostgreSQL. `ADMIN_PASSWORD` será la contraseña para entrar al ERP y debe tener al menos 12 caracteres. Usa una contraseña distinta de la de PostgreSQL. No escribas comillas alrededor de los valores. Guarda el archivo como texto plano con el nombre exacto `.env`, dentro de `backend`.
 
-## Crear y preparar PostgreSQL
+No compartas `backend/.env` ni lo envíes al repositorio. La configuración de desarrollo ya tiene un secreto de sesión temporal; antes de publicar el ERP en un servidor, la persona responsable debe configurar un `SESSION_SECRET` privado de al menos 32 caracteres.
 
-La base utilizada por el backend se llama exactamente `nexuserpm`.
+### Paso 4: crea la base de datos vacía
 
-### Con `psql`
+La base debe llamarse exactamente `nexuserpm`. La contraseña que se solicite aquí es la de PostgreSQL.
 
-Crear la base conectado a una base administrativa:
+**Opción A — con `psql` (recomendada):** desde la carpeta principal, ejecuta:
 
-```powershell
-psql -U postgres -d postgres -f ./database/scripts/00_create_database.sql
+```text
+psql -U postgres -d postgres -f database/scripts/00_create_database.sql
 ```
 
-Crear las tablas en este orden:
+Si tu usuario de PostgreSQL no se llama `postgres`, cambia `-U postgres` por el nombre correcto. Si la base ya existe y contiene datos, detente y sigue la sección de actualización; no es una instalación nueva.
 
-```powershell
-psql -U postgres -d nexuserpm -f ./database/scripts/01_Create_tb_users.sql
-psql -U postgres -d nexuserpm -f ./database/scripts/02_Create_tb_clients.sql
-psql -U postgres -d nexuserpm -f ./database/scripts/03_Create_tb_projects.sql
-psql -U postgres -d nexuserpm -f ./database/scripts/04_Create_network_domain.sql
-# Luego aplicar los scripts 05_ a 11_ en orden y, para demo, 90_Insert_DatosPrueba.sql.
+**Opción B — con pgAdmin:** crea una base de datos llamada `nexuserpm` desde pgAdmin. No ejecutes el archivo `00_create_database.sql` desde Query Tool: ese archivo está diseñado para `psql`.
+
+### Paso 5: crea las tablas del ERP
+
+Con `psql`, ejecuta los siguientes comandos **en orden**, desde la carpeta principal. Si aparece un error, detente y conserva el mensaje; no continúes con los demás archivos.
+
+```text
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/01_Create_tb_users.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/02_Create_tb_clients.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/03_Create_tb_projects.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/04_Create_network_domain.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/05_Alter_sites_customer_scope.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/06_Create_vlans.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/07_Create_monitoring_catalog_and_contracts.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/08_Create_findings_and_work.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/09_Create_billing.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/10_Alter_roles_and_origin.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/11_Create_auth_events_and_sessions.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/12_Alter_network_assets_data_origin.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/13_Create_iot_capture_analytics.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/14_Create_crm_opportunities.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/15_Create_saas_subscriptions.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/16_Create_procurement_expenses.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/17_Create_accounting.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/18_Create_hr_employees.sql
 ```
 
-Inicializar el administrador:
+Cuando aparezca `Password for user postgres`, escribe la contraseña de PostgreSQL. No verás los caracteres en pantalla mientras la escribes; es normal. Si usas pgAdmin, abre cada archivo `01_...sql` hasta `18_...sql` en ese mismo orden, selecciona la base `nexuserpm` y pulsa **Ejecutar**. Espera a que cada archivo finalice antes de abrir el siguiente.
 
-```powershell
+### Paso 6: crea el usuario administrador
+
+Confirma que `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `ADMIN_NAME` estén guardados en `backend/.env`. Desde la carpeta principal ejecuta:
+
+```text
 npm run seed:admin --prefix backend
 ```
 
-Define `ADMIN_EMAIL`, `ADMIN_PASSWORD` y opcionalmente `ADMIN_NAME` en el entorno local antes de ejecutar el seed. El seed genera un hash con `crypto.scrypt` y no restablece la contraseña de una cuenta existente.
+Debe aparecer el mensaje `Administrador inicial creado.`. Este paso crea el usuario para iniciar sesión; no carga registros de clientes ni datos de demostración.
 
-Para cargar la información sintética de la demostración, importa previamente los dos Excel válidos, define `DEMO_USERS_PASSWORD` con al menos 12 caracteres y ejecuta `npm run seed:demo --prefix backend -- --dry-run`; después ejecuta el mismo comando sin `--dry-run`. El seed asigna los 76 activos mediante la operación auditada de red. Para eliminar solo los registros sintéticos y limpiar esa asignación auditadamente, ejecuta `npm run seed:demo --prefix backend -- --reset-synthetic --confirm`. Nunca imprime la contraseña.
+### Paso 7: inicia el ERP
 
-### Con pgAdmin
+Abre **dos terminales** en la carpeta principal. Deja cada una abierta mientras usas el ERP.
 
-1. Abrir `00_create_database.sql` conectado a `postgres` y ejecutarlo.
-2. Seleccionar la base `nexuserpm`.
-3. Ejecutar `01_Create_tb_users.sql` a `11_Create_auth_events_and_sessions.sql` en orden.
-4. Ejecutar desde una terminal el comando `npm run seed:admin --prefix backend`.
+En la primera terminal, inicia el servidor:
 
-Los scripts usan `IF NOT EXISTS` en los objetos principales, pero deben ejecutarse en el orden indicado. No eliminan bases ni tablas automaticamente.
-
-## Administrador inicial
-
-No hay credenciales predeterminadas en el repositorio. Configura las variables de bootstrap localmente, usa una cuenta individual y no incluyas secretos en archivos versionados.
-
-## Demostración y verificación
-
-- Guion del corte vertical: [docs/mvp/guion-demo.md](docs/mvp/guion-demo.md).
-- Supuestos y trazabilidad: [docs/mvp/supuestos.md](docs/mvp/supuestos.md) y [docs/mvp/matriz-trazabilidad.md](docs/mvp/matriz-trazabilidad.md).
-- Compilar y probar: `npm run build --prefix backend`, `npm test --prefix backend` y `npm run build --prefix frontend`.
-- Las pruebas del grafo usan grafos pequeños y los 76 activos/74 enlaces del Excel válido; las reglas puras cubren cartera, horas, aplicabilidad e importación.
-- Aplicar migraciones dos veces y ejecutar pruebas de integración de escritura requiere una base PostgreSQL vacía y separada de la base local existente. No apuntes esos comandos a una base con datos que quieras conservar.
-
-## Ejecutar la aplicacion
-
-Abrir dos terminales en la raiz.
-
-Backend:
-
-```powershell
+```text
 npm run dev:backend
 ```
 
-Disponible en `http://localhost:3001`.
+Espera el mensaje `Backend escuchando en http://localhost:3001`.
 
-Frontend:
+En la segunda terminal, inicia la página web:
 
-```powershell
+```text
 npm run dev:frontend
 ```
 
-Disponible normalmente en `http://localhost:5173`.
+Abre `http://localhost:5173` en el navegador e inicia sesión con `ADMIN_EMAIL` y `ADMIN_PASSWORD`, los datos que guardaste en `backend/.env`.
 
-Si aparece `EADDRINUSE`, ya existe otro proceso usando el puerto:
+Para cerrar el ERP, vuelve a cada terminal y pulsa `Ctrl+C`.
 
-```powershell
-Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue
-Stop-Process -Id <PID> -Force
+### Datos de demostración (opcional)
+
+La instalación nueva crea las tablas y el usuario administrador, pero no inventa información operativa automáticamente. Si quieres mostrar el inventario y el catálogo de equipos incluidos en la carpeta `data`, importa los Excel válidos desde la carpeta principal:
+
+```text
+npm run import:network --prefix backend -- --file ../data/Data_para_Proveedor_ERP.xlsx --dry-run
+npm run import:catalog --prefix backend -- --file ../data/Equipos_Monitoreo_Red_5196.xlsx --dry-run
 ```
 
-## API disponible
+Primero revisa los resultados de validación. Si no reportan un error que debas corregir, repite cada comando quitando `--dry-run` para guardar la información. El archivo `Datos_PacketTracer.xlsx` no se debe importar. Para cargar empresas, proyectos, suscripciones, compras y otros registros sintéticos de demostración, consulta [Supuestos de demo](docs/mvp/supuestos.md) y [Scripts de base de datos](database/scripts/README.md); esos registros son demostrativos, no ventas u operaciones reales.
 
-Todas las rutas empiezan por `/api`.
+## 2. Actualizar desde una versión anterior
 
-- Salud: `GET /api/health`, `GET /api/health/db`.
-- Auth: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`.
-- Usuarios: `GET /api/users`, `POST /api/users`, `PUT /api/users/:id` (incluye estado y rol).
-- Clientes: `GET /api/clients?search=texto`, `GET /api/clients/:id`, `POST /api/clients`, `PUT /api/clients/:id`.
-- Proyectos: `GET /api/projects`, `POST /api/projects`, `PUT /api/projects/:id`.
+Esta sección es para actualizar el código y la base existente **conservando sus registros**. No borres la base de datos, no crees otra con el mismo nombre y no ejecutes los scripts de instalación `01` a `11` sobre la base en uso.
 
-Las rutas de usuarios requieren autorizacion de administrador. Cada proyecto debe referenciar un cliente activo. El backend valida fechas, presupuesto, horas, progreso y valores permitidos. El dominio de red está documentado en [network-domain.md](docs/architecture/network-domain.md). Importación de validación: `npm run import:network --prefix backend -- --file ../data/Data_para_Proveedor_ERP.xlsx --dry-run`.
+### Antes de actualizar
 
-## Pruebas y compilacion
+1. Avisa a las personas que usan el ERP y pídeles cerrar sesión.
+2. Detén el backend y el frontend con `Ctrl+C` en sus terminales.
+3. Comprueba que puedes conectarte a PostgreSQL y que conoces la contraseña del usuario que administra la base.
+4. Haz una copia de seguridad completa. No continúes hasta que el archivo de respaldo exista y tenga un tamaño mayor que cero.
 
-```powershell
-npm test --prefix backend
+**Respaldo con `pg_dump` desde la carpeta principal:**
+
+```text
+pg_dump -U postgres -d nexuserpm -F c -f nexus-antes-de-actualizar.backup
+```
+
+Guarda `nexus-antes-de-actualizar.backup` en un lugar seguro fuera de la carpeta del proyecto. Si tu usuario no es `postgres`, reemplázalo en el comando.
+
+**Respaldo con pgAdmin:** haz clic derecho sobre `nexuserpm` > **Backup…**. Elige formato **Custom**, indica una ubicación fuera del proyecto, por ejemplo `nexus-antes-de-actualizar.backup`, y pulsa **Backup**. Verifica que el archivo se haya creado.
+
+### Actualiza los archivos del proyecto
+
+1. Conserva la copia de seguridad anterior.
+2. Actualiza los archivos del proyecto con la versión nueva usando el mismo método con el que recibiste el proyecto (por ejemplo, `git pull` si trabajas con Git, o copiar los archivos de la entrega nueva).
+3. **Conserva `backend/.env` y la carpeta `data`.** No reemplaces el archivo `.env` por el ejemplo: contiene la conexión a tu base actual.
+4. Abre una terminal en la carpeta principal de la versión nueva.
+5. Instala/actualiza las dependencias:
+
+```text
+npm install --prefix backend
+npm install --prefix frontend
+```
+
+### Aplica los cambios de base de datos
+
+En la versión anterior que ya tenía usuarios, clientes, proyectos, red, contratos, hallazgos, órdenes y facturación (scripts hasta el `12`), aplica solamente los scripts nuevos `13` a `18`. Ejecuta cada comando y espera que termine antes del siguiente:
+
+```text
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/13_Create_iot_capture_analytics.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/14_Create_crm_opportunities.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/15_Create_saas_subscriptions.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/16_Create_procurement_expenses.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/17_Create_accounting.sql
+psql -U postgres -d nexuserpm -v ON_ERROR_STOP=1 -f database/scripts/18_Create_hr_employees.sql
+```
+
+Si tu versión todavía no tenía el cambio `12_Alter_network_assets_data_origin.sql`, ejecuta primero ese archivo y luego los seis comandos anteriores. Si no sabes hasta qué script llegó tu base, **no adivines ni ejecutes todos los scripts**: pide a la persona que administra PostgreSQL que confirme el último cambio aplicado. Este proyecto aún no tiene un registro automático de migraciones ejecutadas.
+
+Si usas pgAdmin, abre cada archivo indicado, confirma que la base seleccionada sea `nexuserpm`, pulsa **Ejecutar** y espera el resultado antes de continuar. No ejecutes `00_create_database.sql` durante una actualización: sirve únicamente para crear la base de una instalación nueva.
+
+### Finaliza y comprueba la actualización
+
+1. Inicia el backend con `npm run dev:backend` y espera `Backend escuchando en http://localhost:3001`.
+2. Inicia el frontend en otra terminal con `npm run dev:frontend`.
+3. Abre `http://localhost:5173` e inicia sesión con tu usuario y contraseña de siempre.
+4. Revisa que puedas abrir Inicio y los módulos que usas, por ejemplo Clientes, Facturación, Compras y Contabilidad.
+5. Si todo funciona, conserva el respaldo hasta confirmar que no necesitas volver a la versión anterior.
+
+La actualización no necesita volver a crear el usuario administrador ni cargar datos sintéticos. No ejecutes `90_Insert_DatosPrueba.sql` en una base con información de trabajo: inserta datos de demostración.
+
+### Si algo sale mal
+
+- Si un comando muestra un error, detente y guarda una captura o copia el texto completo. No ejecutes los siguientes scripts.
+- No borres ni recrees `nexuserpm` para intentar corregir el problema.
+- No restaures el respaldo encima de la base original sin ayuda: restaurar reemplaza su contenido. Conserva el archivo y solicita apoyo técnico indicando en qué paso ocurrió el error.
+- Si el servicio indica que no puede conectarse a PostgreSQL, comprueba que PostgreSQL esté iniciado y que `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` en `backend/.env` sean los de la instalación correcta.
+
+## Qué contienen los datos
+
+Los Excel de red corresponden a inventario/catálogos técnicos y no acreditan clientes ni operaciones comerciales reales. La captura TCP solo aporta métricas agregadas de laboratorio; el sistema no guarda ni expone el contenido bruto de los mensajes. Los registros del seed de demostración son sintéticos y deben presentarse como demostración, no como ventas reales. Consulta [ADR-0003](docs/architecture/adr-0003-nexus-saas.md), [Supuestos de demo](docs/mvp/supuestos.md) y [Análisis de los datos](docs/architecture/analisis-archivos-data.md).
+
+## Información adicional
+
+- [Orden y propósito de los scripts SQL](database/scripts/README.md)
+- [Inicialización del administrador](database/scripts/README_seed_admin.md)
+- [Documentación de API](docs/api/README.md)
+- [Dominio de red](docs/architecture/network-domain.md)
+- [Guion de demostración](docs/mvp/guion-demo.md)
+
+## Ejecutar verificaciones (opcional)
+
+Estos comandos son para una persona técnica o de soporte. No son necesarios para iniciar el ERP:
+
+```text
 npm run build --prefix backend
 npm run build --prefix frontend
+npm test --prefix backend
 ```
 
-Las pruebas que requieren PostgreSQL deben ejecutarse con `nexuserpm` disponible y `backend/.env` configurado.
-
-## Flujo para un integrante nuevo
-
-```powershell
-git clone <URL_DEL_REPOSITORIO>
-Set-Location ./nexus
-npm run install:all
-Copy-Item .env.example backend/.env
-```
-
-Despues debe editar `backend/.env`, crear la base, ejecutar los scripts SQL en orden, inicializar el administrador y levantar backend y frontend.
-
-No se deben subir `node_modules`, archivos `.env`, contraseñas, compilaciones ni datos locales.
-
-## Convencion de scripts SQL
-
-Todos los cambios estructurales deben quedar en `database/scripts/`:
-
-1. `00_create_database.sql`: creacion no destructiva de `nexuserpm`.
-2. `01_Create_tb_users.sql`: tabla de usuarios.
-3. `02_Create_tb_clients.sql`: tabla de clientes.
-4. `03_Create_tb_projects.sql`: tabla de proyectos.
-5. `04_Create_network_domain.sql`: activos, enlaces, interfaces, VLAN/DHCP, monitoreo, lotes e incidencias.
-
-Los nuevos cambios deben usar el siguiente numero disponible, por ejemplo `05_Alter_sites_customer_scope.sql` o `06_Create_vlans.sql`. No se deben reutilizar numeros ni crear carpetas `migrations`, `seeds` u otras dentro de `database`.
-
-El seed del administrador se ejecuta desde `backend/src/scripts/seed-admin.ts`; `database/scripts/README_seed_admin.md` documenta el procedimiento. La excepción de numeración corresponde a documentación Markdown, no a un script SQL.
-
-## Documentacion relacionada
-
-- [Scripts y orden de base de datos](database/scripts/README.md)
-- [Inicializacion del administrador](database/scripts/README_seed_admin.md)
-- [Analisis de archivos Excel y propuesta de modelo](docs/architecture/analisis-archivos-data.md)
-- [MVP y trazabilidad](docs/mvp/matriz-trazabilidad.md)
-- [Supuestos de demo](docs/mvp/supuestos.md)
-- [Guion de demo](docs/mvp/guion-demo.md)
-
-## Limitaciones conocidas
-
-- Las sesiones actuales se mantienen en memoria del backend; reiniciar el proceso cierra las sesiones activas.
-- No hay MFA, SSO corporativo ni recuperacion de contraseña.
-- Aun no se han implementado facturacion, pagos, cartera, recursos humanos, tareas, etapas, importacion automatica de Excel ni reportes avanzados.
-- La cuenta inicial compartida es unicamente para desarrollo academico.
+Las pruebas que requieren PostgreSQL deben ejecutarse en una base de prueba separada; nunca sobre una base con información que quieras conservar.

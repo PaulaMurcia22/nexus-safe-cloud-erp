@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { managedApi } from '../../services/api';
 import { SyntheticBadge } from '../../components/SyntheticBadge';
 
+const contractStates: Record<string,string> = { DRAFT:'Borrador', ACTIVE:'Activo', ENDED:'Finalizado' };
+const assetCategories: Record<string,string> = { NETWORK_INFRASTRUCTURE:'Infraestructura de red', CCTV_IOT:'CCTV e IoT', SERVER:'Servidor', SECURITY:'Seguridad' };
+
 export function ContractsPage() {
   const [items, setItems] = useState<any[]>([]);
   const [active, setActive] = useState<any>();
@@ -46,20 +49,20 @@ export function ContractsPage() {
       {error && <p className="error">{error}</p>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Código</th><th>Cliente</th><th>Vigencia</th><th>Estado</th><th>Mensualidad</th><th>Origen</th></tr></thead>
-          <tbody>{items.map((contract) => <tr key={contract.id} onClick={() => void showContract(contract.id)}>
+          <thead><tr><th>Código</th><th>Cliente</th><th>Vigencia</th><th>Estado</th><th>Mensualidad</th></tr></thead>
+          <tbody>{items.map((contract) => <tr key={contract.id} className="contract-row" onClick={() => void showContract(contract.id)} title="Ver alcance del contrato">
             <td>{contract.code}</td><td>{contract.customer_name}</td><td>{contract.starts_on} – {contract.ends_on ?? 'abierto'}</td>
-            <td>{contract.status}</td><td>{Number(contract.monthly_fee).toLocaleString('es-CO')}</td><td><SyntheticBadge origin={contract.data_origin} /></td>
+            <td><span className={`status-pill ${contract.status==='ACTIVE'?'on':'off'}`}>{contractStates[contract.status] || contract.status}</span></td><td>{Number(contract.monthly_fee).toLocaleString('es-CO')}</td>
           </tr>)}</tbody>
         </table>
       </div>
-      {active && <div className="card">
-        <h3>Alcance · {active.code}<SyntheticBadge origin={active.data_origin} /></h3>
+      {active && <div className="card contract-scope-panel">
+        <div className="contract-scope-heading"><div><span className="eyebrow">DETALLE DEL SERVICIO</span><h3>Alcance · {active.code}<SyntheticBadge origin={active.data_origin} /></h3></div><button className="ghost" onClick={() => setActive(undefined)}>Cerrar detalle</button></div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Activo</th><th>Categoría</th><th>Señal</th><th>Incluida</th></tr></thead>
             <tbody>{active.scope?.map((item: any) => <tr key={item.id}>
-              <td>{item.asset_name}</td><td>{item.category}</td><td>{item.signal_key}</td><td>{item.included ? 'Sí' : 'No'}</td>
+              <td>{item.asset_name}</td><td>{assetCategories[item.category] || item.category}</td><td>{item.signal_key}</td><td>{item.included ? 'Sí' : 'No'}</td>
             </tr>)}</tbody>
           </table>
           {!active.scope?.length && <p className="empty">Este contrato no tiene elementos de alcance.</p>}

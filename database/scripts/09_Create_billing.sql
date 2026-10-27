@@ -24,7 +24,7 @@ SELECT
   i.customer_id,
   c.legal_name AS customer_name,
   COUNT(*)::INTEGER AS invoice_count,
-  SUM(i.total) FILTER (WHERE CURRENT_DATE-i.due_date BETWEEN 0 AND 30) AS days_0_30,
+  SUM(i.total) FILTER (WHERE CURRENT_DATE-i.due_date BETWEEN 1 AND 30) AS days_0_30,
   SUM(i.total) FILTER (WHERE CURRENT_DATE-i.due_date BETWEEN 31 AND 60) AS days_31_60,
   SUM(i.total) FILTER (WHERE CURRENT_DATE-i.due_date BETWEEN 61 AND 90) AS days_61_90,
   SUM(i.total) FILTER (WHERE CURRENT_DATE-i.due_date > 90) AS days_over_90,

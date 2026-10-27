@@ -18,9 +18,23 @@ tags:
   - name: Órdenes y horas
   - name: Facturación
   - name: Reportes
+  - name: CRM y SaaS
+  - name: Compras y finanzas
+  - name: Talento humano
 security:
   - sessionCookie: []
 paths:
+  /projects/responsible-users:
+    get:
+      tags: [Clientes y proyectos]
+      summary: Listar usuarios activos para asignación de proyectos
+      responses:
+        '200':
+          description: Usuarios disponibles con id, nombre y rol.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '00000000-0000-4000-8000-000000000510', name: 'Camila Restrepo', role: ADMIN}]}
   /auth/login:
     post:
       tags: [Sesión]
@@ -799,6 +813,400 @@ paths:
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: {type: string, format: binary}
         '404': {$ref: '#/components/responses/NotFound'}
+  /iot/captures:
+    get:
+      tags: [Red]
+      summary: Listar capturas IoT importadas
+      description: Roles permitidos ADMIN, MANAGEMENT, IT_OPERATIONS y PMO.
+      responses:
+        '200':
+          description: Capturas recientes y sus indicadores principales.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '528fb54a-24d2-4d4f-97a7-c6db31c488af', name: captura_iot, sourceFile: captura_iot.xlsx, totalPackets: 148, totalFrameBytes: 32769, totalPayloadBytes: 22857, durationSeconds: 26.722209, payloadEfficiency: 69.7519, importedAt: '2026-10-27T15:00:00.000Z', dataOrigin: IMPORTED}]}
+  /iot/captures/import:
+    post:
+      tags: [Red]
+      summary: Importar captura Excel de tráfico IoT/TCP
+      description: 'Roles permitidos: ADMIN e IT_OPERATIONS. El libro requiere Resumen, Paquetes, Payloads y Conversaciones; las métricas del resumen se contrastan con las hojas de detalle. Los campos ASCII y hexadecimal de payload no se guardan ni devuelven.'
+      parameters:
+        - name: X-File-Name
+          in: header
+          required: true
+          schema: {type: string, example: captura_iot.xlsx}
+      requestBody:
+        required: true
+        content:
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema: {type: string, format: binary}
+      responses:
+        '200':
+          description: El hash corresponde a una captura ya importada; se devuelve el registro existente.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+        '201':
+          description: Captura validada y agregados guardados.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: '528fb54a-24d2-4d4f-97a7-c6db31c488af', stats: {totalPackets: 148, packetsWithPayload: 57, totalFrameBytes: 32769, totalPayloadBytes: 22857, durationSeconds: 26.722209, payloadEfficiency: 69.7519, payloadCounts: {TEXT: 35, BINARY: 22}, payloadBytesByType: {TEXT: 16094, BINARY: 6763}}, timeSeries: [], portVolumes: []}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '413': {description: Archivo superior a 10 MB.}
+        '415': {description: Formato distinto de .xlsx.}
+  /iot/captures/{id}:
+    get:
+      tags: [Red]
+      summary: Consultar dashboard y metadatos de captura
+      description: Incluye paquetes, conversaciones y clasificación de payloads sin el contenido de los mensajes.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Métricas, serie temporal, conversaciones y filas de payload anonimizadas respecto al contenido.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: '528fb54a-24d2-4d4f-97a7-c6db31c488af', name: captura_iot, totalPackets: 148, packetsWithPayload: 57, totalFrameBytes: 32769, totalPayloadBytes: 22857, durationSeconds: 26.722209, payloadEfficiency: 69.7519, payloadCounts: {TEXT: 35, BINARY: 22}, timeSeries: [{packetNumber: 1, seconds: 0, frameBytes: 743, payloadBytes: 677}], payloads: [{packetNumber: 1, flow: '172.28.0.12:8080 -> 172.28.0.1:51340', bytes: 677, type: TEXT, timestamp: '2026-09-03T00:07:39.000Z', sourcePort: 8080, destinationPort: 51340}], conversations: [{endpointA: '172.28.0.1:51340', endpointB: '172.28.0.12:8080', sourcePort: 51340, packets: 8, frameBytes: 2696, payloadBytes: 2168, startSeconds: 0, endSeconds: 24.971267}], portVolumes: [{port: 51340, conversations: 1, packets: 8, frameBytes: 2696, payloadBytes: 2168}]}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /opportunities:
+    get:
+      tags: [CRM y SaaS]
+      summary: Consultar oportunidades comerciales
+      responses:
+        '200':
+          description: Lista JSON de oportunidades y MRR estimado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+      parameters:
+        - {name: stage, in: query, schema: {type: string, enum: [LEAD, QUALIFIED, PROPOSAL, NEGOTIATION, WON, LOST]}}
+        - {name: search, in: query, schema: {type: string}}
+    post:
+      tags: [CRM y SaaS]
+      summary: Crear oportunidad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {companyName: 'Clínica del Valle', title: 'Monitoreo multisede', stage: PROPOSAL, expectedMrr: 2400000, probability: 65, source: REFERRAL}
+      responses:
+        '201': {description: Oportunidad creada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}
+  /opportunities/{id}:
+    get:
+      tags: [CRM y SaaS]
+      summary: Consultar oportunidad
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Oportunidad JSON, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}, '404': {$ref: '#/components/responses/NotFound'}}
+    put:
+      tags: [CRM y SaaS]
+      summary: Actualizar oportunidad
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {companyName: 'Clínica del Valle', title: 'Monitoreo multisede', stage: NEGOTIATION, expectedMrr: 2800000, probability: 80, source: REFERRAL}
+      responses: {'200': {description: Oportunidad actualizada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    delete:
+      tags: [CRM y SaaS]
+      summary: Eliminar oportunidad
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'204': {description: Oportunidad eliminada}}
+  /saas/plans:
+    get:
+      tags: [CRM y SaaS]
+      summary: Listar planes SaaS
+      responses: {'200': {description: Catálogo de planes y tarifas, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+  /saas/subscriptions:
+    get:
+      tags: [CRM y SaaS]
+      summary: Listar suscripciones SaaS y MRR
+      responses: {'200': {description: Lista JSON de suscripciones, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+    post:
+      tags: [CRM y SaaS]
+      summary: Crear suscripción
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {customerId: '00000000-0000-4000-8000-000000000101', planId: '00000000-0000-4000-8000-000000000001', code: NS-2026-010, billingInterval: MONTHLY, seats: 12, startsOn: '2026-10-01', notes: 'Plan de monitoreo empresarial'}
+      responses: {'201': {description: Suscripción creada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /saas/subscriptions/{id}:
+    get:
+      tags: [CRM y SaaS]
+      summary: Consultar suscripción
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Suscripción JSON, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    put:
+      tags: [CRM y SaaS]
+      summary: Actualizar suscripción
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {customerId: '00000000-0000-4000-8000-000000000101', planId: '00000000-0000-4000-8000-000000000001', code: NS-2026-010, billingInterval: YEARLY, seats: 15, startsOn: '2026-10-01', notes: 'Renovación anual'}
+      responses: {'200': {description: Suscripción actualizada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /saas/subscriptions/{id}/cancel:
+    post:
+      tags: [CRM y SaaS]
+      summary: Cancelar suscripción
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Suscripción cancelada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /saas/subscriptions/{id}/reactivate:
+    post:
+      tags: [CRM y SaaS]
+      summary: Reactivar suscripción
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Suscripción reactivada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /procurement/suppliers:
+    get:
+      tags: [Compras y finanzas]
+      summary: Listar proveedores
+      responses: {'200': {description: Proveedores JSON, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+    post:
+      tags: [Compras y finanzas]
+      summary: Crear proveedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {name: 'Nube Andina S.A.S.', category: CLOUD_HOSTING, contactName: 'Mesa de servicios', email: proveedores@example.com, paymentTermsDays: 30, status: ACTIVE}
+      responses: {'201': {description: Proveedor creado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /procurement/orders:
+    get:
+      tags: [Compras y finanzas]
+      summary: Listar órdenes de compra
+      responses: {'200': {description: Órdenes y líneas JSON, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+    post:
+      tags: [Compras y finanzas]
+      summary: Crear orden de compra
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {supplierId: '00000000-0000-4000-8000-000000005000', description: 'Capacidad cloud', orderedOn: '2026-10-27', expectedOn: '2026-11-10', currency: COP, taxRate: 19, lines: [{description: 'Nodos de observabilidad', quantity: 3, unitPrice: 1850000}]}
+      responses: {'201': {description: Orden creada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /procurement/orders/{id}/status:
+    patch:
+      tags: [Compras y finanzas]
+      summary: Cambiar estado de orden de compra
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {status: APPROVED}
+      responses: {'200': {description: Orden actualizada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /procurement/expenses:
+    get:
+      tags: [Compras y finanzas]
+      summary: Listar gastos
+      responses: {'200': {description: Gastos JSON, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+    post:
+      tags: [Compras y finanzas]
+      summary: Registrar gasto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {description: 'Consumo mensual de infraestructura cloud', category: CLOUD_INFRASTRUCTURE, expenseDate: '2026-10-27', currency: COP, amount: 4200000, status: RECORDED}
+      responses: {'201': {description: Gasto registrado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /hr/employees:
+    get:
+      tags: [Talento humano]
+      summary: Listar colaboradores
+      responses: {'200': {description: Directorio JSON, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+    post:
+      tags: [Talento humano]
+      summary: Crear colaborador
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {employeeNumber: NX-0009, fullName: 'María Fernanda Ruiz', workEmail: maria.ruiz@example.com, jobTitle: 'Analista de producto', department: Producto, officeLocation: BOGOTA, startDate: '2026-10-27', status: ACTIVE, contractType: FULL_TIME}
+      responses: {'201': {description: Colaborador creado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /hr/employees/{id}:
+    get:
+      tags: [Talento humano]
+      summary: Consultar colaborador
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Ficha de colaborador, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    put:
+      tags: [Talento humano]
+      summary: Actualizar colaborador
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {employeeNumber: NX-0009, fullName: 'María Fernanda Ruiz', workEmail: maria.ruiz@example.com, jobTitle: 'Líder de producto', department: Producto, officeLocation: BOGOTA, startDate: '2026-10-27', status: ACTIVE, contractType: FULL_TIME}
+      responses: {'200': {description: Colaborador actualizado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    delete:
+      tags: [Talento humano]
+      summary: Desactivar colaborador y conservar historial
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Ficha desactivada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /accounting/accounts:
+    get:
+      tags: [Compras y finanzas]
+      summary: Listar plan contable
+      responses: {'200': {description: Cuentas JSON, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+    post:
+      tags: [Compras y finanzas]
+      summary: Crear cuenta contable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {code: '5600', name: 'Servicios de nube', accountType: EXPENSE, normalBalance: DEBIT, active: true}
+      responses: {'201': {description: Cuenta creada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /accounting/accounts/{id}:
+    put:
+      tags: [Compras y finanzas]
+      summary: Actualizar cuenta contable
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {code: '5600', name: 'Servicios cloud y telecomunicaciones', accountType: EXPENSE, normalBalance: DEBIT, active: true}
+      responses: {'200': {description: Cuenta actualizada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /accounting/journal-entries:
+    get:
+      tags: [Compras y finanzas]
+      summary: Consultar asientos
+      responses: {'200': {description: Asientos JSON, content: {application/json: {schema: {$ref: '#/components/schemas/ItemsEnvelope'}}}}}
+    post:
+      tags: [Compras y finanzas]
+      summary: Crear asiento contable balanceado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {entryDate: '2026-10-27', description: 'Ingreso por suscripción mensual', sourceType: SUBSCRIPTION, lines: [{accountId: '00000000-0000-4000-8000-000000000001', description: 'Cuentas por cobrar', debit: 799000, credit: 0}, {accountId: '00000000-0000-4000-8000-000000000002', description: 'Ingreso SaaS', debit: 0, credit: 799000}]}
+      responses: {'201': {description: Asiento en borrador creado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /accounting/journal-entries/{id}:
+    get:
+      tags: [Compras y finanzas]
+      summary: Consultar asiento y detalle
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Asiento JSON con líneas, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    put:
+      tags: [Compras y finanzas]
+      summary: Actualizar asiento en borrador
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {entryDate: '2026-10-27', description: 'Ingreso por suscripción corregido', sourceType: SUBSCRIPTION, lines: [{accountId: '00000000-0000-4000-8000-000000000001', description: 'Cuentas por cobrar', debit: 820000, credit: 0}, {accountId: '00000000-0000-4000-8000-000000000002', description: 'Ingreso SaaS', debit: 0, credit: 820000}]}
+      responses: {'200': {description: Asiento actualizado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    delete:
+      tags: [Compras y finanzas]
+      summary: Eliminar asiento en borrador
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'204': {description: Asiento eliminado}}
+  /accounting/journal-entries/{id}/post:
+    post:
+      tags: [Compras y finanzas]
+      summary: Contabilizar asiento balanceado
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'200': {description: Asiento contabilizado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /accounting/journal-entries/{id}/void:
+    post:
+      tags: [Compras y finanzas]
+      summary: Anular asiento contabilizado
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {reason: 'Corrección del periodo contable'}
+      responses: {'200': {description: Asiento anulado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /accounting/trial-balance:
+    get:
+      tags: [Compras y finanzas]
+      summary: Consultar balance de prueba
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date}}
+      responses: {'200': {description: Balance de prueba en JSON, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /accounting/profit-loss:
+    get:
+      tags: [Compras y finanzas]
+      summary: Consultar estado de resultados
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date}}
+      responses: {'200': {description: Ingresos, gastos y resultado en JSON, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+  /procurement/suppliers/{id}:
+    put:
+      tags: [Compras y finanzas]
+      summary: Actualizar proveedor
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {name: 'Nube Andina S.A.S.', category: CLOUD_HOSTING, contactName: 'Mesa de servicios', email: proveedores@example.com, paymentTermsDays: 45, status: ACTIVE}
+      responses: {'200': {description: Proveedor actualizado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    delete:
+      tags: [Compras y finanzas]
+      summary: Eliminar proveedor sin órdenes asociadas
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'204': {description: Proveedor eliminado}}
+  /procurement/orders/{id}:
+    put:
+      tags: [Compras y finanzas]
+      summary: Actualizar orden de compra en borrador
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {supplierId: '00000000-0000-4000-8000-000000005000', description: 'Capacidad cloud', orderedOn: '2026-10-27', expectedOn: '2026-11-10', currency: COP, taxRate: 19, lines: [{description: 'Nodos de observabilidad', quantity: 3, unitPrice: 1850000}]}
+      responses: {'200': {description: Orden actualizada, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    delete:
+      tags: [Compras y finanzas]
+      summary: Eliminar orden en borrador
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'204': {description: Orden eliminada}}
+  /procurement/expenses/{id}:
+    put:
+      tags: [Compras y finanzas]
+      summary: Actualizar gasto no pagado
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenericRecord'}
+            example: {description: 'Consumo mensual de infraestructura cloud', category: CLOUD_INFRASTRUCTURE, expenseDate: '2026-10-27', currency: COP, amount: 4250000, status: APPROVED}
+      responses: {'200': {description: Gasto actualizado, content: {application/json: {schema: {$ref: '#/components/schemas/GenericRecord'}}}}}
+    delete:
+      tags: [Compras y finanzas]
+      summary: Eliminar gasto no pagado
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses: {'204': {description: Gasto eliminado}}
 components:
   securitySchemes:
     sessionCookie:

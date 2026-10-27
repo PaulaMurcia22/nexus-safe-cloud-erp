@@ -14,7 +14,7 @@ Para demostrar el flujo de extremo a extremo se asumirá que el centro de salud 
 
 La ciudad de la sede del cliente no está acreditada por las fuentes; se registrará literalmente como `Sin confirmar`. Las oficinas internas Medellín, Bogotá y Remoto compartido siguen siendo sedes internas distintas.
 
-Solo son fuentes reales válidas `Data_para_Proveedor_ERP.xlsx` y `Equipos_Monitoreo_Red_5196.xlsx`. `Datos_PacketTracer.xlsx` se descarta porque contradice el direccionamiento del archivo válido. `captura_tcp-2_Grupo_Eventos_Temporales.xlsx` se descarta por ser una captura temporal ajena al flujo y potencialmente sensible.
+Las fuentes de inventario válidas son `Data_para_Proveedor_ERP.xlsx` y `Equipos_Monitoreo_Red_5196.xlsx`. `Datos_PacketTracer.xlsx` se descarta porque contradice el direccionamiento del archivo válido. El alcance de la captura temporal se actualiza en [ADR-0002](adr-0002-iot-capture-metadata.md).
 
 ## Alternativas consideradas
 
@@ -27,6 +27,6 @@ Solo son fuentes reales válidas `Data_para_Proveedor_ERP.xlsx` y `Equipos_Monit
 - Los activos y señales importados conservan hash, lote, incidencias y origen `IMPORTED`.
 - Los registros de negocio de demostración se etiquetan `SYNTHETIC` y muestran una insignia visible.
 - El catálogo de monitoreo orienta el alcance; no implica telemetría ni disponibilidad en vivo.
-- No se guardan payloads ni capturas de tráfico. VLAN de biométrico y signos vitales se clasifican como sensibles y solo se mantienen metadatos de red.
+- No se guardan payloads brutos. El uso analítico limitado de metadatos de una captura se define en ADR-0002. VLAN de biométrico y signos vitales se clasifican como sensibles.
 - La demo prueba un flujo académico, no acredita que Nexus opere realmente el centro de salud ni que las cifras financieras sean reales.
 

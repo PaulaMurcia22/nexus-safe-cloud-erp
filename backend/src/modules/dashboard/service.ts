@@ -16,7 +16,7 @@ export async function summary(userId: string, role: string) {
     return { year: new Date().getUTCFullYear(), scope: 'TECHNICIAN', kpis: { openOrders: orders.rows[0].open_orders, completedOrders: orders.rows[0].completed_orders, hoursYtd: Number(hours.rows[0].hours_ytd) }, monthlyHours: monthly.rows };
   }
 
-  const [customers, projects, contracts, orders, findings, monthly, aging, projectStatus, orderStatus, recent] = await Promise.all([
+  const [customers, projects, contracts, orders, findings, monthly, aging, projectStatus, orderStatus, recent, subscriptions, pipeline, expenses, procurement, employees] = await Promise.all([
     pool.query(`SELECT count(*) FILTER (WHERE status='ACTIVE')::int AS active, count(*)::int AS total FROM clients`),
     pool.query(`SELECT count(*) FILTER (WHERE status='IN_PROGRESS')::int AS active, count(*) FILTER (WHERE status='COMPLETED')::int AS completed, count(*)::int AS total FROM projects`),
     pool.query(`SELECT count(*) FILTER (WHERE status='ACTIVE' AND starts_on<=CURRENT_DATE AND (ends_on IS NULL OR ends_on>=CURRENT_DATE))::int AS active FROM service_contracts`),
@@ -31,6 +31,19 @@ export async function summary(userId: string, role: string) {
     pool.query(`SELECT status,count(*)::int AS count FROM projects GROUP BY status ORDER BY status`),
     pool.query(`SELECT status,count(*)::int AS count FROM work_orders GROUP BY status ORDER BY status`),
     pool.query(`SELECT i.id,i.number,i.issue_date,i.due_date,i.total,i.status,i.data_origin,c.legal_name AS customer_name FROM invoices i JOIN clients c ON c.id=i.customer_id WHERE i.status IN ('ISSUED','PAID') ORDER BY i.issue_date DESC,i.created_at DESC LIMIT 6`),
+    pool.query(`SELECT count(*) FILTER (WHERE status IN ('ACTIVE','PAST_DUE'))::int AS paying,
+      count(*) FILTER (WHERE status='TRIAL')::int AS trials,
+      COALESCE(sum(monthly_value) FILTER (WHERE status IN ('ACTIVE','PAST_DUE')),0)::numeric AS mrr
+      FROM saas_subscriptions WHERE currency='COP'`),
+    pool.query(`SELECT count(*) FILTER (WHERE stage NOT IN ('WON','LOST'))::int AS open,
+      COALESCE(sum(expected_mrr) FILTER (WHERE stage NOT IN ('WON','LOST')),0)::numeric AS raw_mrr,
+      COALESCE(sum(expected_mrr*probability/100) FILTER (WHERE stage NOT IN ('WON','LOST')),0)::numeric AS weighted_mrr
+      FROM crm_opportunities`),
+    pool.query(`SELECT COALESCE(sum(amount),0)::numeric AS ytd FROM expenses WHERE status<>'VOID' AND expense_date>=date_trunc('year',CURRENT_DATE)::date AND expense_date<=CURRENT_DATE`),
+    pool.query(`SELECT count(*) FILTER (WHERE status IN ('DRAFT','SUBMITTED','APPROVED'))::int AS open,
+      COALESCE(sum(total) FILTER (WHERE status IN ('DRAFT','SUBMITTED','APPROVED')),0)::numeric AS committed
+      FROM purchase_orders WHERE currency='COP'`),
+    pool.query(`SELECT count(*) FILTER (WHERE status='ACTIVE')::int AS active FROM hr_employees`),
   ]);
 
   const finance = financeRoles.has(role) ? {
@@ -49,6 +62,10 @@ export async function summary(userId: string, role: string) {
       activeContracts: contracts.rows[0].active, openOrders: orders.rows[0].open,
       completedOrders: orders.rows[0].completed, openFindings: findings.rows[0].open,
       criticalFindings: findings.rows[0].critical, ...finance,
+      ...(new Set(['ADMIN','MANAGEMENT','COMMERCIAL','FINANCE']).has(role) ? { mrr: Number(subscriptions.rows[0].mrr), arr: Number(subscriptions.rows[0].mrr)*12, activeSubscriptions: subscriptions.rows[0].paying, trialSubscriptions: subscriptions.rows[0].trials } : {}),
+      ...(new Set(['ADMIN','MANAGEMENT','COMMERCIAL']).has(role) ? { openOpportunities: pipeline.rows[0].open, weightedPipelineMrr: Number(pipeline.rows[0].weighted_mrr) } : {}),
+      ...(financeRoles.has(role) ? { expensesYtd: Number(expenses.rows[0].ytd), purchaseOrdersOpen: procurement.rows[0].open, purchaseCommitment: Number(procurement.rows[0].committed) } : {}),
+      ...(new Set(['ADMIN','MANAGEMENT']).has(role) ? { teamSize: employees.rows[0].active } : {}),
     },
     monthly: monthly.rows, projectStatus: projectStatus.rows, orderStatus: orderStatus.rows,
     recentInvoices: finance ? recent.rows : [],

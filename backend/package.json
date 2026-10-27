@@ -11,7 +11,8 @@
     "seed:demo": "tsx src/scripts/seed-demo.ts",
     "test": "tsx --test src/tests/*.test.ts src/modules/*/tests/*.test.ts",
     "import:network": "tsx src/scripts/import-network.ts",
-    "import:catalog": "tsx src/scripts/import-catalog.ts"
+    "import:catalog": "tsx src/scripts/import-catalog.ts",
+    "import:iot-capture": "tsx src/scripts/import-iot-capture.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

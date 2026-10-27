@@ -1,0 +1,21 @@
+import { Router } from 'express';
+import { asyncHandler } from '../../middlewares/errors.js';
+import { requireRoles } from '../../shared/auth.js';
+import * as c from './controller.js';
+
+export const procurementRouter = Router();
+const read = requireRoles('ADMIN','MANAGEMENT','FINANCE','IT_OPERATIONS');
+const write = requireRoles('ADMIN','FINANCE','IT_OPERATIONS');
+procurementRouter.get('/procurement/suppliers',read,asyncHandler(c.listSuppliers));
+procurementRouter.post('/procurement/suppliers',write,asyncHandler(c.createSupplier));
+procurementRouter.put('/procurement/suppliers/:id',write,asyncHandler(c.updateSupplier));
+procurementRouter.delete('/procurement/suppliers/:id',write,asyncHandler(c.deleteSupplier));
+procurementRouter.get('/procurement/orders',read,asyncHandler(c.listOrders));
+procurementRouter.post('/procurement/orders',write,asyncHandler(c.createOrder));
+procurementRouter.put('/procurement/orders/:id',write,asyncHandler(c.updateOrder));
+procurementRouter.delete('/procurement/orders/:id',write,asyncHandler(c.deleteOrder));
+procurementRouter.patch('/procurement/orders/:id/status',write,asyncHandler(c.orderStatus));
+procurementRouter.get('/procurement/expenses',read,asyncHandler(c.listExpenses));
+procurementRouter.post('/procurement/expenses',write,asyncHandler(c.createExpense));
+procurementRouter.put('/procurement/expenses/:id',write,asyncHandler(c.updateExpense));
+procurementRouter.delete('/procurement/expenses/:id',write,asyncHandler(c.deleteExpense));

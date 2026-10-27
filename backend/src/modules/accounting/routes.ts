@@ -1,0 +1,20 @@
+import { Router } from 'express';
+import { asyncHandler } from '../../middlewares/errors.js';
+import { requireRoles } from '../../shared/auth.js';
+import * as c from './controller.js';
+
+export const accountingRouter=Router();
+const read=requireRoles('ADMIN','MANAGEMENT','FINANCE');
+const write=requireRoles('ADMIN','FINANCE');
+accountingRouter.get('/accounting/accounts',read,asyncHandler(c.accounts));
+accountingRouter.post('/accounting/accounts',write,asyncHandler(c.createAccount));
+accountingRouter.put('/accounting/accounts/:id',write,asyncHandler(c.updateAccount));
+accountingRouter.get('/accounting/journal-entries',read,asyncHandler(c.entries));
+accountingRouter.get('/accounting/journal-entries/:id',read,asyncHandler(c.entry));
+accountingRouter.post('/accounting/journal-entries',write,asyncHandler(c.createEntry));
+accountingRouter.put('/accounting/journal-entries/:id',write,asyncHandler(c.updateEntry));
+accountingRouter.delete('/accounting/journal-entries/:id',write,asyncHandler(c.deleteEntry));
+accountingRouter.post('/accounting/journal-entries/:id/post',write,asyncHandler(c.postEntry));
+accountingRouter.post('/accounting/journal-entries/:id/void',write,asyncHandler(c.voidEntry));
+accountingRouter.get('/accounting/trial-balance',read,asyncHandler(c.trialBalance));
+accountingRouter.get('/accounting/profit-loss',read,asyncHandler(c.profitLoss));
