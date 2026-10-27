@@ -19,11 +19,13 @@ CREATE TABLE IF NOT EXISTS network_assets (
   customer_id UUID REFERENCES clients(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   project_id UUID REFERENCES projects(id) ON UPDATE CASCADE ON DELETE RESTRICT,
   status VARCHAR(10) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','RETIRED')),
+  data_origin VARCHAR(10) NOT NULL DEFAULT 'MANUAL',
   extra JSONB NOT NULL DEFAULT '{}'::jsonb, manual_overrides JSONB NOT NULL DEFAULT '{}'::jsonb,
   source_data JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by UUID REFERENCES users(id) ON DELETE SET NULL, updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  CONSTRAINT ck_network_assets_config_lines CHECK (config_lines IS NULL OR config_lines >= 0)
+  CONSTRAINT ck_network_assets_config_lines CHECK (config_lines IS NULL OR config_lines >= 0),
+  CONSTRAINT ck_network_assets_data_origin CHECK (data_origin IN ('IMPORTED','SYNTHETIC','MANUAL'))
 );
 CREATE INDEX IF NOT EXISTS ix_network_assets_name ON network_assets(name);
 CREATE INDEX IF NOT EXISTS ix_network_assets_category ON network_assets(category);

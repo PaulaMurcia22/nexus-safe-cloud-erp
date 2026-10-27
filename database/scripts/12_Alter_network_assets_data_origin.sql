@@ -1,5 +1,6 @@
--- Añade el origen del dato requerido por reportes e inventario de activos.
--- Seguro para bases existentes: conserva filas y clasifica las actuales como MANUAL.
+-- Compatibilidad para bases creadas antes de incluir data_origin en 04_Create_network_domain.sql.
+-- En instalaciones nuevas, 04 crea la columna; esta migración queda como no-op.
+-- En bases existentes, conserva filas y clasifica las actuales como MANUAL.
 ALTER TABLE public.network_assets
   ADD COLUMN IF NOT EXISTS data_origin VARCHAR(10) NOT NULL DEFAULT 'MANUAL';
 

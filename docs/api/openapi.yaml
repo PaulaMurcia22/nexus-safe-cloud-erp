@@ -1,0 +1,1120 @@
+openapi: 3.0.3
+info:
+  title: Nexus Safe-Cloud ERP API
+  version: 1.0.0
+  description: |
+    Contrato de API para presentación. Incluye exclusivamente endpoints consumidos
+    por la interfaz activa del MVP. Las respuestas reflejan las estructuras del
+    backend; algunos registros incluyen columnas adicionales según los datos.
+servers:
+  - url: http://localhost:3000/api
+    description: Backend local (ajustar puerto/host según backend/.env)
+tags:
+  - name: Sesión
+  - name: Administración
+  - name: Clientes y proyectos
+  - name: Red
+  - name: Servicio gestionado
+  - name: Órdenes y horas
+  - name: Facturación
+  - name: Reportes
+security:
+  - sessionCookie: []
+paths:
+  /auth/login:
+    post:
+      tags: [Sesión]
+      summary: Iniciar sesión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LoginRequest'}
+            example: {email: admin@nexus.local, password: DemoPassword123!}
+      responses:
+        '200':
+          description: Sesión iniciada; además configura la cookie HttpOnly nexus_session.
+          headers:
+            Set-Cookie:
+              schema: {type: string}
+              description: Cookie de sesión; el navegador la envía en solicitudes posteriores.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserEnvelope'}
+              example: {user: {id: '0f4e1a72-5b8c-4df0-9b83-7ab231c18a0f', name: Admin, email: admin@nexus.local, role: ADMIN, status: ACTIVE}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /auth/me:
+    get:
+      tags: [Sesión]
+      summary: Consultar la sesión actual
+      responses:
+        '200':
+          description: Usuario autenticado o null si no existe sesión.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserEnvelope'}
+              example: {user: {id: '0f4e1a72-5b8c-4df0-9b83-7ab231c18a0f', name: Admin, email: admin@nexus.local, role: ADMIN, status: ACTIVE}}
+  /auth/logout:
+    post:
+      tags: [Sesión]
+      summary: Cerrar sesión
+      responses:
+        '204': {description: Sesión cerrada y cookie eliminada.}
+  /users:
+    get:
+      tags: [Administración]
+      summary: Listar usuarios
+      description: Solo ADMIN. Sin page/pageSize devuelve un arreglo; con paginación devuelve el sobre indicado.
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - name: search
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Usuarios registrados.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedUsers'}
+              example: {items: [{id: '0f4e1a72-5b8c-4df0-9b83-7ab231c18a0f', name: Ana Pérez, email: ana@nexus.local, role: ADMIN, status: ACTIVE}], total: 1, page: 1, pageSize: 50}
+    post:
+      tags: [Administración]
+      summary: Crear usuario (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserCreate'}
+            example: {name: Ana Pérez, email: ana@nexus.local, password: DemoPassword123!, role: TECHNICIAN}
+      responses:
+        '201':
+          description: Usuario creado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              example: {id: '0f4e1a72-5b8c-4df0-9b83-7ab231c18a0f', name: Ana Pérez, email: ana@nexus.local, role: TECHNICIAN, status: ACTIVE}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /users/{id}:
+    put:
+      tags: [Administración]
+      summary: Actualizar usuario (ADMIN)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UserUpdate'}
+            example: {name: Ana Pérez, email: ana@nexus.local, role: TECHNICIAN, status: ACTIVE}
+      responses:
+        '200':
+          description: Usuario actualizado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/User'}
+              example: {id: '0f4e1a72-5b8c-4df0-9b83-7ab231c18a0f', name: Ana Pérez, email: ana@nexus.local, role: TECHNICIAN, status: ACTIVE}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /clients:
+    get:
+      tags: [Clientes y proyectos]
+      summary: Listar clientes
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - name: search
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Clientes; respuesta paginada cuando se envían page/pageSize, arreglo sin ellos.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedClients'}
+              example: {items: [{id: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', legalName: Clínica Demo, nit: '900123456-7', industry: Salud, contactName: Laura Gómez, contactPosition: Administradora, contactEmail: laura@clinica.example, contactPhone: '+57 300 000 0000', city: Bogotá, address: 'Calle 1 # 2-3', status: ACTIVE}], total: 1, page: 1, pageSize: 50}
+    post:
+      tags: [Clientes y proyectos]
+      summary: Crear cliente (ADMIN o COMMERCIAL)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ClientInput'}
+            example: {legalName: Clínica Demo, nit: '900123456-7', industry: Salud, contactName: Laura Gómez, contactPosition: Administradora, contactEmail: laura@clinica.example, contactPhone: '+57 300 000 0000', city: Bogotá, address: 'Calle 1 # 2-3', status: ACTIVE}
+      responses:
+        '201':
+          description: Cliente creado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Client'}
+              example: {id: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', legalName: Clínica Demo, nit: '900123456-7', industry: Salud, contactName: Laura Gómez, contactPosition: Administradora, contactEmail: laura@clinica.example, contactPhone: '+57 300 000 0000', city: Bogotá, address: 'Calle 1 # 2-3', status: ACTIVE}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /clients/{id}:
+    put:
+      tags: [Clientes y proyectos]
+      summary: Actualizar cliente (ADMIN o COMMERCIAL)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ClientInput'}
+            example: {legalName: Clínica Demo, nit: '900123456-7', industry: Salud, contactName: Laura Gómez, contactEmail: laura@clinica.example, city: Bogotá, status: ACTIVE}
+      responses:
+        '200':
+          description: Cliente actualizado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Client'}
+              example: {id: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', legalName: Clínica Demo, nit: '900123456-7', industry: Salud, contactName: Laura Gómez, contactPosition: null, contactEmail: laura@clinica.example, contactPhone: null, city: Bogotá, address: null, status: ACTIVE}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /projects:
+    get:
+      tags: [Clientes y proyectos]
+      summary: Listar proyectos
+      parameters:
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/PageSize'}
+        - name: search
+          in: query
+          schema: {type: string}
+        - name: status
+          in: query
+          schema: {type: string}
+        - name: customerId
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Proyectos; arreglo sin paginación y sobre paginado al usar page/pageSize.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedProjects'}
+              example: {items: [{id: '21f7a812-f1b1-4973-a0cf-bc15818ce243', code: PRJ-001, name: Soporte de red, description: Servicio administrado, customerId: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', customerName: Clínica Demo, serviceType: INFRASTRUCTURE_SUPPORT, status: IN_PROGRESS, priority: HIGH, responsibleLocation: BOGOTA, progressPercentage: 25}], total: 1, page: 1, pageSize: 50}
+    post:
+      tags: [Clientes y proyectos]
+      summary: Crear proyecto
+      description: 'Roles permitidos: ADMIN, IT_OPERATIONS, PMO.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProjectInput'}
+            example: {code: PRJ-001, name: Soporte de red, description: Servicio administrado, customerId: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', serviceType: INFRASTRUCTURE_SUPPORT, status: PLANNED, priority: MEDIUM, responsibleLocation: BOGOTA, startDate: '2026-10-01', estimatedEndDate: '2026-12-31', estimatedBudget: 5000000, estimatedHours: 120, progressPercentage: 0}
+      responses:
+        '201':
+          description: Proyecto creado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+              example: {id: '21f7a812-f1b1-4973-a0cf-bc15818ce243', code: PRJ-001, name: Soporte de red, description: Servicio administrado, customerId: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', serviceType: INFRASTRUCTURE_SUPPORT, status: PLANNED, priority: MEDIUM, responsibleLocation: BOGOTA, progressPercentage: 0}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /projects/{id}:
+    put:
+      tags: [Clientes y proyectos]
+      summary: Actualizar proyecto
+      description: 'Roles permitidos: ADMIN, IT_OPERATIONS, PMO.'
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProjectInput'}
+            example: {code: PRJ-001, name: Soporte de red, customerId: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', serviceType: INFRASTRUCTURE_SUPPORT, status: IN_PROGRESS, priority: HIGH, responsibleLocation: BOGOTA, progressPercentage: 25}
+      responses:
+        '200':
+          description: Proyecto actualizado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Project'}
+              example: {id: '21f7a812-f1b1-4973-a0cf-bc15818ce243', code: PRJ-001, name: Soporte de red, customerId: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', serviceType: INFRASTRUCTURE_SUPPORT, status: IN_PROGRESS, priority: HIGH, responsibleLocation: BOGOTA, progressPercentage: 25}
+  /network/summary:
+    get:
+      tags: [Red]
+      summary: Obtener indicadores de red
+      responses:
+        '200':
+          description: Totales de activos, enlaces, controles y alertas recientes.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/NetworkSummary'}
+              example: {totalAssets: 76, activeAssets: 74, assetsWithoutSite: 2, assetsWithoutCustomer: 1, unassignedAssets: 1, infrastructureAssets: 60, missingIp: 3, missingSerial: 0, sites: 4, active_assets: 74, unassigned_assets: 1, active_links: 91, byCategory: [{category: NETWORK_INFRASTRUCTURE, count: 60}], byCriticality: [{criticality: HIGH, count: 12}], controlCoverage: [{control: EDR, configured: 4, not_detected: 2, not_applicable: 0}], links: {total: 91, non_functional: 1, unknown_functional: 3, critical: 6}, activeLinks: 91, nonFunctionalLinks: 1, unknownFunctionalLinks: 3, openIssues: 0}
+  /network/assets:
+    get:
+      tags: [Red]
+      summary: Consultar inventario de activos
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+        - {name: search, in: query, schema: {type: string}}
+        - {name: siteId, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {type: string}}
+        - {name: assetType, in: query, schema: {type: string}}
+        - {name: criticality, in: query, schema: {type: string, enum: [CRITICAL, HIGH, MEDIUM, LOW]}}
+        - {name: customerId, in: query, schema: {type: string, format: uuid}}
+        - {name: unassigned, in: query, schema: {type: boolean}}
+      responses:
+        '200':
+          description: Página de activos y total filtrado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedAssets'}
+              example: {items: [{id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', serial_number: SW-001, serialNumber: SW-001, hostname: SW-CORE-01, asset_type: SWITCH, assetType: SWITCH, status: ACTIVE, siteName: Sede Bogotá, clientName: Clínica Demo, ipAddress: '10.0.0.1', macAddress: '00:11:22:33:44:55'}], total: 1, page: 1, pageSize: 50}
+  /network/assets/{id}:
+    get:
+      tags: [Red]
+      summary: Consultar detalle de un activo
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Activo con direcciones, interfaces, controles y enlaces asociados.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AssetDetail'}
+              example: {id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', serial_number: SW-001, hostname: SW-CORE-01, asset_type: SWITCH, status: ACTIVE, ipAddresses: [], macAddresses: [], interfaces: [], controls: [], links: []}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Red]
+      summary: Guardar datos adicionales de un activo
+      description: Esta operación de interfaz guarda los campos personalizados como un objeto JSON clave/valor.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+            example: {rack: Rack A3, owner: Equipo de infraestructura, warranty_end: '2027-12-31'}
+      responses:
+        '200':
+          description: Activo actualizado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Asset'}
+              example: {id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', serial_number: SW-001, hostname: SW-CORE-01, status: ACTIVE, extra_values: {rack: Rack A3}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /network/assets/bulk-assignment:
+    post:
+      tags: [Red]
+      summary: Asignar activos en lote
+      description: 'Roles permitidos: ADMIN e IT_OPERATIONS.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BulkAssignment'}
+            example: {filter: {unassigned: true, siteId: '20f7a812-f1b1-4973-a0cf-bc15818ce243'}, assignment: {customerId: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', projectId: '21f7a812-f1b1-4973-a0cf-bc15818ce243'}}
+      responses:
+        '200':
+          description: Cantidad de activos actualizados.
+          content:
+            application/json:
+              schema: {type: object, properties: {updated: {type: integer}}}
+              example: {updated: 12}
+  /network/assets/{id}/retire:
+    post:
+      tags: [Red]
+      summary: Retirar un activo del inventario
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Registro del activo con marca de retiro.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Asset'}
+              example: {id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', status: RETIRED, extra: {retired_at: '2026-10-26T15:00:00.000Z'}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /network/links:
+    get:
+      tags: [Red]
+      summary: Listar enlaces de red
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Enlaces visibles, con seriales de los extremos cuando están disponibles.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedLinks'}
+              example: {items: [{id: 'eabf604d-a02e-4afd-95d1-c95a0d53de00', source_asset_id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', target_asset_id: 'eacd604d-a02e-4afd-95d1-c95a0d53de00', link_type: ETHERNET, source_serial: SW-001, target_serial: FW-001}], page: 1, pageSize: 50}
+  /network/links/{id}/retire:
+    post:
+      tags: [Red]
+      summary: Retirar un enlace
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Registro del enlace marcado como retirado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: 'eabf604d-a02e-4afd-95d1-c95a0d53de00', extra: {retired_at: '2026-10-26T15:00:00.000Z'}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /network/topology:
+    get:
+      tags: [Red]
+      summary: Consultar topología para simulación
+      description: Devuelve nodos activos y enlaces; la simulación en frontend calcula impacto sin modificar inventario.
+      responses:
+        '200':
+          description: Grafo de red.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Topology'}
+              example: {nodes: [{id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', serial_number: SW-001, hostname: SW-CORE-01, asset_type: SWITCH, status: ACTIVE, site_id: '20f7a812-f1b1-4973-a0cf-bc15818ce243', site_name: Sede Bogotá, role: CORE}], edges: [{id: 'eabf604d-a02e-4afd-95d1-c95a0d53de00', source_asset_id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', target_asset_id: 'eacd604d-a02e-4afd-95d1-c95a0d53de00', link_type: ETHERNET, source_interface: Gi0/1, target_interface: Gi0/1, functional: true}]}
+  /network/assets/{id}/impact:
+    get:
+      tags: [Red]
+      summary: Simular caída de un activo
+      description: Calcula los activos impactados; no altera el inventario ni el estado operativo.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Identificador del activo simulado y activos impactados.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Impact'}
+              example: {failedAssetId: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', impactedAssetIds: ['eacd604d-a02e-4afd-95d1-c95a0d53de00']}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /network/vlans:
+    get:
+      tags: [Red]
+      summary: Listar VLAN
+      responses:
+        '200':
+          description: VLAN y cantidad de activos asociados.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: 'c62cc3d8-6165-4ac1-ae6d-91de741a9901', vlan_id: 10, name: Usuarios, subnet: 10.0.10.0/24, gateway: 10.0.10.1, site_id: '20f7a812-f1b1-4973-a0cf-bc15818ce243', site_name: Sede Bogotá, asset_count: 18}]}
+  /network/dhcp-pools:
+    get:
+      tags: [Red]
+      summary: Listar pools DHCP activos
+      responses:
+        '200':
+          description: Pools DHCP activos.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: 'de09340f-0057-4ee7-bae0-26bc8addc208', name: Pool usuarios, network: 10.0.10.0/24, netmask: 255.255.255.0, gateway: 10.0.10.1, dns: ['1.1.1.1'], active: true}]}
+  /network/dhcp-pools/{id}/retire:
+    post:
+      tags: [Red]
+      summary: Retirar pool DHCP
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Pool actualizado con estado inactivo.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: 'de09340f-0057-4ee7-bae0-26bc8addc208', name: Pool usuarios, active: false}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /network/sites:
+    get:
+      tags: [Red]
+      summary: Listar sedes
+      responses:
+        '200':
+          description: Sedes registradas.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '20f7a812-f1b1-4973-a0cf-bc15818ce243', name: Sede Bogotá, city: Bogotá, status: ACTIVE}]}
+  /network/imports:
+    get:
+      tags: [Red]
+      summary: Consultar historial de importaciones
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+      responses:
+        '200':
+          description: Lotes de importación recientes.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedGeneric'}
+              example: {items: [{id: '157b4427-873a-480e-b15b-506e85a79a0f', source_file: inventario.xlsx, status: COMPLETED, started_at: '2026-10-26T14:00:00.000Z'}], page: 1, pageSize: 50}
+  /network/issues:
+    get:
+      tags: [Red]
+      summary: Consultar novedades de la última importación
+      responses:
+        '200':
+          description: Novedades de validación del lote más reciente.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '2c6eaed9-4870-4c09-98f0-7d8a5f9998b2', sheet: Activos, row_number: 8, severity: WARNING, message: Serial duplicado}]}
+  /network/custom-fields:
+    get:
+      tags: [Red]
+      summary: Listar definiciones de campos personalizados
+      responses:
+        '200':
+          description: Campos personalizados de activos.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: 'd6c871cc-e5bd-4ae0-af7a-372b438913cf', field_key: rack, label: Rack, field_type: TEXT, required: false, active: true}]}
+    post:
+      tags: [Red]
+      summary: Crear definición de campo (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CustomFieldInput'}
+            example: {key: rack, label: Rack, valueType: TEXT, required: false, active: true}
+      responses:
+        '201':
+          description: Campo creado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: 'd6c871cc-e5bd-4ae0-af7a-372b438913cf', field_key: rack, label: Rack, field_type: TEXT, required: false, active: true}
+  /network/custom-fields/{id}:
+    delete:
+      tags: [Red]
+      summary: Desactivar definición de campo (ADMIN)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Campo desactivado (baja lógica).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: 'd6c871cc-e5bd-4ae0-af7a-372b438913cf', field_key: rack, active: false}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /network/monitoring-technologies:
+    get:
+      tags: [Red]
+      summary: Listar tecnologías de monitoreo
+      responses:
+        '200':
+          description: Tecnologías y estado de confirmación de colector.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: 'e145819c-6630-45f1-a219-7e50f765f8ae', technology: SNMP, collector_host: null, collector_port: null, confirmation_status: PENDING}]}
+  /network/monitoring-technologies/{id}/collector-confirmation:
+    put:
+      tags: [Red]
+      summary: Confirmar configuración del colector
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CollectorConfirmation'}
+            example: {host: collector.nexus.local, port: 161}
+      responses:
+        '200':
+          description: Tecnología actualizada y confirmada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: 'e145819c-6630-45f1-a219-7e50f765f8ae', technology: SNMP, collector_host: collector.nexus.local, collector_port: 161, confirmation_status: CONFIRMED}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /service-contracts:
+    get:
+      tags: [Servicio gestionado]
+      summary: Listar contratos de servicio
+      parameters:
+        - name: customerId
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Contratos y datos de cliente/sede asociados.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '4852ed5c-a2bb-4675-a550-b11f2e65a2b8', code: DEMO-SVC-001, customer_id: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', customer_name: Clínica Demo, status: ACTIVE, start_date: '2026-10-01', end_date: '2026-12-31', monthly_fee: 1500000}]}
+  /service-contracts/{id}:
+    get:
+      tags: [Servicio gestionado]
+      summary: Consultar contrato y su alcance
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Contrato con el arreglo scope de activos/señales incluidos.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContractDetail'}
+              example: {id: '4852ed5c-a2bb-4675-a550-b11f2e65a2b8', code: DEMO-SVC-001, status: ACTIVE, customer_name: Clínica Demo, scope: [{id: 'd72b8da3-c6bb-4e37-8890-d2b19a883d92', asset_id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', asset_name: SW-CORE-01, category: NETWORK_INFRASTRUCTURE, criticality: HIGH, signal_key: availability, included: true}]}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /findings:
+    get:
+      tags: [Servicio gestionado]
+      summary: Listar hallazgos
+      parameters:
+        - {name: status, in: query, schema: {type: string}}
+        - {name: severity, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Hallazgos y nombre de activo.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: 'a9fd47a7-4c12-4fa6-bd8f-1ec0c827e128', asset_id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', asset_name: SW-CORE-01, severity: HIGH, status: OPEN, title: Firmware pendiente de actualización}]}
+  /findings/generate:
+    post:
+      tags: [Servicio gestionado]
+      summary: Generar hallazgos a partir de configuración importada
+      parameters:
+        - name: contractId
+          in: query
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Resultado de generación.
+          content:
+            application/json:
+              schema: {type: object, properties: {created: {type: integer}, source: {type: string}}}
+              example: {created: 4, source: imported_configuration}
+  /findings/{id}/status:
+    patch:
+      tags: [Servicio gestionado]
+      summary: Cambiar estado de hallazgo
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [status], properties: {status: {type: string, enum: [OPEN, ACKNOWLEDGED, IN_PROGRESS, RESOLVED, CLOSED]}}}
+            example: {status: IN_PROGRESS}
+      responses:
+        '200':
+          description: Hallazgo actualizado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: 'a9fd47a7-4c12-4fa6-bd8f-1ec0c827e128', severity: HIGH, status: IN_PROGRESS}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /findings/{id}/work-order:
+    post:
+      tags: [Servicio gestionado]
+      summary: Crear orden de trabajo desde un hallazgo
+      description: No recibe body. Crea una OT vinculada al hallazgo.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '201':
+          description: Orden de trabajo creada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkOrder'}
+              example: {id: '8ca576ee-44a1-450d-a5e6-62778ac589c1', code: OT-2026-001, title: Firmware pendiente de actualización, status: OPEN, finding_id: 'a9fd47a7-4c12-4fa6-bd8f-1ec0c827e128', billable: true, data_origin: MANUAL}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /work-orders:
+    get:
+      tags: [Órdenes y horas]
+      summary: Listar órdenes de trabajo
+      description: La respuesta se filtra a órdenes asignadas cuando el usuario tiene rol TECHNICIAN.
+      responses:
+        '200':
+          description: Órdenes visibles para el usuario.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '8ca576ee-44a1-450d-a5e6-62778ac589c1', code: OT-2026-001, title: Revisar firmware, status: OPEN, estimated_hours: 2, billable: true}]}
+  /work-orders/{id}/status:
+    patch:
+      tags: [Órdenes y horas]
+      summary: Actualizar estado de una orden
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, required: [status], properties: {status: {type: string, enum: [OPEN, IN_PROGRESS, BLOCKED, COMPLETED, CANCELLED]}}}
+            example: {status: IN_PROGRESS}
+      responses:
+        '200':
+          description: Orden actualizada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WorkOrder'}
+              example: {id: '8ca576ee-44a1-450d-a5e6-62778ac589c1', code: OT-2026-001, status: IN_PROGRESS}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /time-entries:
+    get:
+      tags: [Órdenes y horas]
+      summary: Consultar horas registradas
+      responses:
+        '200':
+          description: Horas registradas visibles para administración/operación.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '89abff23-5456-467f-b21a-59c44d5f0ce9', work_order_id: '8ca576ee-44a1-450d-a5e6-62778ac589c1', user_id: '0f4e1a72-5b8c-4df0-9b83-7ab231c18a0f', entry_date: '2026-10-26', hours: 2.5, description: Diagnóstico de conectividad}]}
+  /time-entries/mine:
+    get:
+      tags: [Órdenes y horas]
+      summary: Consultar mis horas (TECHNICIAN)
+      responses:
+        '200':
+          description: Registros de tiempo del técnico autenticado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '89abff23-5456-467f-b21a-59c44d5f0ce9', work_order_id: '8ca576ee-44a1-450d-a5e6-62778ac589c1', entry_date: '2026-10-26', hours: 2.5, description: Diagnóstico de conectividad}]}
+  /work-orders/{id}/time-entries:
+    post:
+      tags: [Órdenes y horas]
+      summary: Registrar horas en una orden (TECHNICIAN asignado)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TimeEntryInput'}
+            example: {entryDate: '2026-10-26', hours: 2.5, description: Diagnóstico de conectividad}
+      responses:
+        '201':
+          description: Registro de horas creado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: '89abff23-5456-467f-b21a-59c44d5f0ce9', work_order_id: '8ca576ee-44a1-450d-a5e6-62778ac589c1', entry_date: '2026-10-26', hours: 2.5, description: Diagnóstico de conectividad}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /billing/invoices:
+    get:
+      tags: [Facturación]
+      summary: Listar facturas
+      responses:
+        '200':
+          description: Facturas con nombre del cliente.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '5dfd850e-1a72-4c90-9008-0c72c0586095', number: FAC-2026-001, customer_id: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', customer_name: Clínica Demo, subtotal: 1500000, tax_rate: 19, total: 1785000, status: ISSUED, due_date: '2026-11-30'}]}
+  /billing/aging:
+    get:
+      tags: [Facturación]
+      summary: Consultar cartera y antigüedad de saldos
+      responses:
+        '200':
+          description: Filas de la vista de cartera del backend.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{customer_id: '6b30f15e-b0a2-49ad-a520-72f8b99a13a0', customer_name: Clínica Demo, outstanding_amount: 1785000, overdue_days: 0, aging_bucket: CURRENT}]}
+  /billing/milestones:
+    get:
+      tags: [Facturación]
+      summary: Listar hitos de facturación
+      responses:
+        '200':
+          description: Hitos con nombre del proyecto.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ItemsEnvelope'}
+              example: {items: [{id: '79aa6261-1228-4a7c-9b25-af3fe7935681', project_id: '21f7a812-f1b1-4973-a0cf-bc15818ce243', project_name: Soporte de red, name: Servicio octubre, amount: 1500000, status: PLANNED}]}
+    post:
+      tags: [Facturación]
+      summary: Crear hito de facturación (ADMIN o PMO)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MilestoneInput'}
+            example: {projectId: '21f7a812-f1b1-4973-a0cf-bc15818ce243', name: Servicio octubre, description: Mensualidad de octubre, amount: 1500000}
+      responses:
+        '201':
+          description: Hito creado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: '79aa6261-1228-4a7c-9b25-af3fe7935681', project_id: '21f7a812-f1b1-4973-a0cf-bc15818ce243', name: Servicio octubre, amount: 1500000, status: PLANNED, data_origin: MANUAL}
+  /billing/milestones/{id}/close:
+    post:
+      tags: [Facturación]
+      summary: Cerrar hito y generar factura en borrador (ADMIN o PMO)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '201':
+          description: Factura generada para el hito.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: '5dfd850e-1a72-4c90-9008-0c72c0586095', milestone_id: '79aa6261-1228-4a7c-9b25-af3fe7935681', number: FAC-2026-001, subtotal: 1500000, status: DRAFT}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /billing/invoices/{id}/issue:
+    post:
+      tags: [Facturación]
+      summary: Emitir factura (ADMIN o FINANCE)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/IssueInvoiceInput'}
+            example: {dueDate: '2026-11-30', taxRate: 19}
+      responses:
+        '200':
+          description: Factura emitida.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: '5dfd850e-1a72-4c90-9008-0c72c0586095', number: FAC-2026-001, subtotal: 1500000, tax_rate: 19, total: 1785000, status: ISSUED, due_date: '2026-11-30'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /billing/invoices/{id}/pay:
+    post:
+      tags: [Facturación]
+      summary: Registrar pago de factura (ADMIN o FINANCE)
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PayInvoiceInput'}
+            example: {paidAt: '2026-11-15T15:30:00.000Z'}
+      responses:
+        '200':
+          description: Factura marcada como pagada.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GenericRecord'}
+              example: {id: '5dfd850e-1a72-4c90-9008-0c72c0586095', number: FAC-2026-001, total: 1785000, status: PAID, paid_at: '2026-11-15T15:30:00.000Z'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /reports/{resource}.xlsx:
+    get:
+      tags: [Reportes]
+      summary: Descargar reporte Excel
+      description: Devuelve un archivo XLSX (binario), por lo que esta operación no tiene respuesta JSON.
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema: {type: string, enum: [assets, findings, receivables]}
+      responses:
+        '200':
+          description: Archivo Excel descargable.
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: {type: string, format: binary}
+        '404': {$ref: '#/components/responses/NotFound'}
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: nexus_session
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    Page:
+      name: page
+      in: query
+      schema: {type: integer, minimum: 1}
+    PageSize:
+      name: pageSize
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100}
+  responses:
+    BadRequest:
+      description: Datos inválidos.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: Datos inválidos.}
+    Unauthorized:
+      description: Credenciales inválidas o falta de sesión.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: Credenciales inválidas.}
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: Recurso no encontrado.}
+    Conflict:
+      description: Transición de estado no permitida.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: Solo se pueden emitir facturas en borrador.}
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: string}
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string, format: email}
+        password: {type: string, minLength: 1}
+    User:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        email: {type: string, format: email}
+        role: {type: string, enum: [ADMIN, MANAGEMENT, COMMERCIAL, FINANCE, IT_OPERATIONS, PMO, TECHNICIAN]}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+    UserEnvelope:
+      type: object
+      properties:
+        user:
+          allOf:
+            - {$ref: '#/components/schemas/User'}
+          nullable: true
+    UserCreate:
+      type: object
+      required: [name, email, password, role]
+      properties:
+        name: {type: string, minLength: 2, maxLength: 160}
+        email: {type: string, format: email}
+        password: {type: string, minLength: 8, maxLength: 128}
+        role: {type: string, enum: [ADMIN, MANAGEMENT, COMMERCIAL, FINANCE, IT_OPERATIONS, PMO, TECHNICIAN]}
+    UserUpdate:
+      type: object
+      required: [name, email, role, status]
+      properties:
+        name: {type: string}
+        email: {type: string, format: email}
+        role: {type: string, enum: [ADMIN, MANAGEMENT, COMMERCIAL, FINANCE, IT_OPERATIONS, PMO, TECHNICIAN]}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+    ClientInput:
+      type: object
+      required: [legalName, nit, industry, contactName, contactEmail, city]
+      properties:
+        legalName: {type: string, minLength: 2, maxLength: 200}
+        nit: {type: string, minLength: 3, maxLength: 30}
+        industry: {type: string, minLength: 2, maxLength: 120}
+        contactName: {type: string, minLength: 2, maxLength: 160}
+        contactPosition: {type: string, nullable: true, maxLength: 120}
+        contactEmail: {type: string, format: email}
+        contactPhone: {type: string, nullable: true, maxLength: 40}
+        city: {type: string, minLength: 2, maxLength: 100}
+        address: {type: string, nullable: true, maxLength: 240}
+        status: {type: string, enum: [ACTIVE, INACTIVE], default: ACTIVE}
+    Client:
+      allOf:
+        - {$ref: '#/components/schemas/ClientInput'}
+        - type: object
+          properties:
+            id: {type: string, format: uuid}
+    ProjectInput:
+      type: object
+      required: [code, name, customerId, serviceType, responsibleLocation]
+      properties:
+        code: {type: string, minLength: 2, maxLength: 40}
+        name: {type: string, minLength: 2, maxLength: 160}
+        description: {type: string, nullable: true}
+        customerId: {type: string, format: uuid}
+        serviceType: {type: string, enum: [SOFTWARE_DEVELOPMENT, INFRASTRUCTURE_SUPPORT, CLOUD_CONSULTING, CYBERSECURITY, MANAGED_MONITORING]}
+        status: {type: string, enum: [PLANNED, IN_PROGRESS, ON_HOLD, COMPLETED, CANCELLED], default: PLANNED}
+        priority: {type: string, enum: [LOW, MEDIUM, HIGH], default: MEDIUM}
+        responsibleUserId: {type: string, format: uuid, nullable: true}
+        responsibleLocation: {type: string, enum: [MEDELLIN, BOGOTA, REMOTE_SHARED]}
+        startDate: {type: string, format: date, nullable: true}
+        estimatedEndDate: {type: string, format: date, nullable: true}
+        estimatedBudget: {type: number, minimum: 0, nullable: true}
+        estimatedHours: {type: number, minimum: 0, nullable: true}
+        progressPercentage: {type: integer, minimum: 0, maximum: 100, default: 0}
+    Project:
+      allOf:
+        - {$ref: '#/components/schemas/ProjectInput'}
+        - type: object
+          properties:
+            id: {type: string, format: uuid}
+            customerName: {type: string}
+    PagedUsers:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/User'}}
+        total: {type: integer}
+        page: {type: integer}
+        pageSize: {type: integer}
+    PagedClients:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Client'}}
+        total: {type: integer}
+        page: {type: integer}
+        pageSize: {type: integer}
+    PagedProjects:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Project'}}
+        total: {type: integer}
+        page: {type: integer}
+        pageSize: {type: integer}
+    Asset:
+      type: object
+      description: Registro de activo; puede contener además columnas de inventario y campos extra.
+      properties:
+        id: {type: string, format: uuid}
+        serial_number: {type: string, nullable: true}
+        serialNumber: {type: string, nullable: true}
+        hostname: {type: string, nullable: true}
+        asset_type: {type: string, nullable: true}
+        assetType: {type: string, nullable: true}
+        status: {type: string}
+        siteName: {type: string, nullable: true}
+        clientName: {type: string, nullable: true}
+        projectName: {type: string, nullable: true}
+        ipAddress: {type: string, nullable: true}
+        macAddress: {type: string, nullable: true}
+    AssetDetail:
+      allOf:
+        - {$ref: '#/components/schemas/Asset'}
+        - type: object
+          properties:
+            ipAddresses: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+            macAddresses: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+            interfaces: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+            controls: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+            links: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+    PagedAssets:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Asset'}}
+        total: {type: integer}
+        page: {type: integer}
+        pageSize: {type: integer}
+    NetworkSummary:
+      type: object
+      properties:
+        totalAssets: {type: integer}
+        activeAssets: {type: integer}
+        assetsWithoutSite: {type: integer}
+        assetsWithoutCustomer: {type: integer}
+        unassignedAssets: {type: integer}
+        infrastructureAssets: {type: integer}
+        missingIp: {type: integer}
+        missingSerial: {type: integer}
+        sites: {type: integer}
+        byCategory: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+        byCriticality: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+        controlCoverage: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+        links: {$ref: '#/components/schemas/GenericRecord'}
+        openIssues: {type: integer}
+    BulkAssignment:
+      type: object
+      required: [assignment]
+      properties:
+        filter:
+          type: object
+          properties:
+            siteId: {type: string, format: uuid}
+            status: {type: string}
+            assetType: {type: string}
+            unassigned: {type: boolean, default: true}
+        assignment:
+          type: object
+          minProperties: 1
+          properties:
+            siteId: {type: string, format: uuid, nullable: true}
+            customerId: {type: string, format: uuid, nullable: true}
+            projectId: {type: string, format: uuid, nullable: true}
+    PagedLinks:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+        page: {type: integer}
+        pageSize: {type: integer}
+    GenericRecord:
+      type: object
+      description: Objeto JSON con los campos de la fila correspondiente; sus columnas varían por recurso.
+      additionalProperties: true
+    ItemsEnvelope:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+    PagedGeneric:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+        page: {type: integer}
+        pageSize: {type: integer}
+    Topology:
+      type: object
+      properties:
+        nodes: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+        edges: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+    Impact:
+      type: object
+      properties:
+        failedAssetId: {type: string, format: uuid}
+        impactedAssetIds: {type: array, items: {type: string, format: uuid}}
+    CustomFieldInput:
+      type: object
+      required: [key, label, valueType]
+      properties:
+        key: {type: string, pattern: '^[a-z][a-z0-9_]{1,63}$'}
+        label: {type: string, minLength: 1, maxLength: 120}
+        valueType: {type: string, enum: [TEXT, NUMBER, DATE, LIST]}
+        options: {type: array, items: {type: string}}
+        required: {type: boolean, default: false}
+        active: {type: boolean, default: true}
+    CollectorConfirmation:
+      type: object
+      required: [host, port]
+      properties:
+        host: {type: string, minLength: 1, maxLength: 253}
+        port: {type: integer, minimum: 1, maximum: 65535}
+    ContractDetail:
+      type: object
+      description: Columnas del contrato más scope, con activo/señal y estado de inclusión.
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        status: {type: string}
+        customer_name: {type: string}
+        scope: {type: array, items: {$ref: '#/components/schemas/GenericRecord'}}
+      additionalProperties: true
+    WorkOrder:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        title: {type: string}
+        description: {type: string, nullable: true}
+        status: {type: string}
+        customer_id: {type: string, format: uuid, nullable: true}
+        site_id: {type: string, format: uuid, nullable: true}
+        contract_id: {type: string, format: uuid, nullable: true}
+        finding_id: {type: string, format: uuid, nullable: true}
+        assigned_user_id: {type: string, format: uuid, nullable: true}
+        estimated_hours: {type: number, nullable: true}
+        billable: {type: boolean}
+        data_origin: {type: string}
+      additionalProperties: true
+    TimeEntryInput:
+      type: object
+      required: [entryDate, hours, description]
+      properties:
+        entryDate: {type: string, format: date}
+        hours: {type: number, minimum: 0, exclusiveMinimum: true, maximum: 24}
+        description: {type: string, minLength: 2, maxLength: 2000}
+    MilestoneInput:
+      type: object
+      required: [projectId, name, amount]
+      properties:
+        projectId: {type: string, format: uuid}
+        name: {type: string, minLength: 2, maxLength: 180}
+        description: {type: string, maxLength: 2000}
+        amount: {type: number, minimum: 0, maximum: 999999999999.99}
+    IssueInvoiceInput:
+      type: object
+      required: [dueDate]
+      properties:
+        dueDate: {type: string, format: date}
+        taxRate: {type: number, minimum: 0, maximum: 100, default: 0}
+    PayInvoiceInput:
+      type: object
+      properties:
+        paidAt: {type: string, format: date-time}

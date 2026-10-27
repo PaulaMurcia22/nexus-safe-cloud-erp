@@ -14,7 +14,7 @@ La cuenta inicial se crea desde TypeScript para que la contraseña nunca se inse
 Desde la raiz del repositorio:
 
 ```powershell
-npm.cmd run seed:admin --prefix backend
+npm run seed:admin --prefix backend
 ```
 
 Antes de ejecutarlo, define `ADMIN_EMAIL` y `ADMIN_PASSWORD` (mínimo 12 caracteres), y opcionalmente `ADMIN_NAME`, en el entorno local. El seed no incluye una cuenta o contraseña predeterminada.
