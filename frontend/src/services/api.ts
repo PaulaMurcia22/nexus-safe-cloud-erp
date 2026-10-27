@@ -7,6 +7,7 @@ const paged=(resource:string,search:string,page:number,pageSize:number)=>request
 export const pagedApi={users:(search:string,page:number,pageSize=20)=>paged('users',search,page,pageSize) as Promise<PageResult<User>>,clients:(search:string,page:number,pageSize=20)=>paged('clients',search,page,pageSize) as Promise<PageResult<Client>>,projects:(status:string,page:number,pageSize=20)=>request<PageResult<Project>>(`/projects?${new URLSearchParams({...(status?{status}:{}),page:String(page),pageSize:String(pageSize)})}`)};
 
 export const managedApi={
+  dashboardSummary:()=>request<Record<string,any>>('/dashboard/summary'),
   clientOverview:(id:string)=>request<Record<string,any>>(`/clients/${id}/overview`),
   contracts:()=>request<{items:Array<Record<string,any>>}>('/service-contracts'),
   contract:(id:string)=>request<Record<string,any>>(`/service-contracts/${id}`),
@@ -16,9 +17,14 @@ export const managedApi={
   setFindingStatus:(id:string,status:string)=>request<Record<string,any>>(`/findings/${id}/status`,{method:'PATCH',body:JSON.stringify({status})}),
   createWorkOrder:(id:string)=>request<Record<string,any>>(`/findings/${id}/work-order`,{method:'POST'}),
   workOrders:()=>request<{items:Array<Record<string,any>>}>('/work-orders'),
+  technicians:()=>request<{items:Array<Record<string,any>>}>('/work-orders/technicians'),
+  createWorkOrder:(d:unknown)=>request<Record<string,any>>('/work-orders',{method:'POST',body:JSON.stringify(d)}),
+  updateWorkOrder:(id:string,d:unknown)=>request<Record<string,any>>(`/work-orders/${id}`,{method:'PUT',body:JSON.stringify(d)}),
   timeEntries:(own=false)=>request<{items:Array<Record<string,any>>}>(own?'/time-entries/mine':'/time-entries'),
   updateWorkStatus:(id:string,status:string)=>request<Record<string,any>>(`/work-orders/${id}/status`,{method:'PATCH',body:JSON.stringify({status})}),
   addTime:(id:string,d:unknown)=>request<Record<string,any>>(`/work-orders/${id}/time-entries`,{method:'POST',body:JSON.stringify(d)}),
+  updateTimeEntry:(id:string,d:unknown)=>request<Record<string,any>>(`/time-entries/${id}`,{method:'PUT',body:JSON.stringify(d)}),
+  deleteTimeEntry:(id:string)=>request<void>(`/time-entries/${id}`,{method:'DELETE'}),
   invoices:()=>request<{items:Array<Record<string,any>>}>('/billing/invoices'),
   aging:()=>request<{items:Array<Record<string,any>>}>('/billing/aging'),
   milestones:()=>request<{items:Array<Record<string,any>>}>('/billing/milestones'),

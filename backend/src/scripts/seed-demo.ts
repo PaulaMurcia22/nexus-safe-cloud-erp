@@ -162,6 +162,7 @@ async function seed() {
 
   const technicianIds = [userIds.get('TECHNICIAN')!, userIds.get('TECHNICIAN_2')!];
   const workIds: string[] = [];
+  const workOwners: string[] = [];
   for (let index = 0; index < 5; index++) {
     const id = stableId(650 + index);
     const title = `Revisar ${missing.rows[index].control} en ${missing.rows[index].name}`;
@@ -174,6 +175,37 @@ async function seed() {
         'Orden sintética basada en una señal de configuración importada; requiere validación operativa.'],
     );
     workIds.push(id);
+    workOwners.push(technicianIds[index % 2]);
+  }
+
+  const customerIds = [demoCustomerId, stableId(103), stableId(104), stableId(105), stableId(106)];
+  const siteIds = [demoSiteId, stableId(202), stableId(203), stableId(204), stableId(205)];
+  const projectIds = [demoProjectId, stableId(302), stableId(303), stableId(304), stableId(305)];
+  const contractIds = [demoContractId, stableId(402), stableId(403), stableId(404), stableId(405)];
+  const orderTitles = [
+    'Revisión preventiva de conectividad', 'Ajuste de reglas de firewall', 'Validación de respaldos de configuración',
+    'Revisión de capacidad de enlaces', 'Atención de alerta de monitoreo', 'Actualización de documentación de red',
+    'Verificación de segmentación de VLAN', 'Prueba de continuidad del servicio', 'Revisión de acceso administrativo',
+    'Ajuste de umbrales de monitoreo', 'Diagnóstico de pérdida de paquetes', 'Mantenimiento preventivo de infraestructura',
+    'Revisión de inventario y ciclo de vida', 'Validación de cambios operativos', 'Cierre de informe mensual',
+  ];
+  const workStatuses = ['COMPLETED', 'IN_PROGRESS', 'OPEN', 'COMPLETED', 'BLOCKED'] as const;
+  for (let index = 0; index < orderTitles.length; index++) {
+    const account = (index % 4) + 1;
+    const id = stableId(800 + index);
+    const assigned = technicianIds[index % 2];
+    const status = workStatuses[index % workStatuses.length];
+    await pool.query(
+      `INSERT INTO work_orders(id,code,customer_id,site_id,contract_id,project_id,assigned_user_id,title,description,status,estimated_hours,billable,data_origin)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,'SYNTHETIC')
+       ON CONFLICT(id) DO UPDATE SET customer_id=EXCLUDED.customer_id,site_id=EXCLUDED.site_id,contract_id=EXCLUDED.contract_id,
+         project_id=EXCLUDED.project_id,assigned_user_id=EXCLUDED.assigned_user_id,title=EXCLUDED.title,description=EXCLUDED.description,
+         status=EXCLUDED.status,estimated_hours=EXCLUDED.estimated_hours,billable=true,data_origin='SYNTHETIC',updated_at=now()`,
+      [id, `DEMO-OT-2026-${String(index + 6).padStart(3, '0')}`, customerIds[account], siteIds[account], contractIds[account], projectIds[account], assigned,
+        orderTitles[index], 'Orden sintética de operación administrada; no representa un incidente real confirmado.', status, index % 2 ? 12 : 8],
+    );
+    workIds.push(id);
+    workOwners.push(assigned);
   }
 
   const anchor = new Date('2026-10-25T12:00:00Z');
@@ -188,6 +220,22 @@ async function seed() {
          hours=EXCLUDED.hours,description=EXCLUDED.description,data_origin='SYNTHETIC'`,
       [stableId(700 + index), workIds[index % 5], technicianIds[index % 2], date.toISOString().slice(0, 10), index % 3 === 0 ? 1.5 : 2,
         `Registro sintético ${index + 1} de trabajo técnico.`],
+    );
+  }
+
+  // Registros sintéticos distribuidos en los meses del año para mostrar tendencia y carga operativa.
+  for (let index = 0; index < 120; index++) {
+    const month = index % 10;
+    const day = 5 + Math.floor(index / 10);
+    const date = new Date(Date.UTC(2026, month, day));
+    const orderIndex = index % workIds.length;
+    await pool.query(
+      `INSERT INTO time_entries(id,work_order_id,user_id,entry_date,hours,description,data_origin)
+       VALUES($1,$2,$3,$4,$5,$6,'SYNTHETIC')
+       ON CONFLICT(id) DO UPDATE SET work_order_id=EXCLUDED.work_order_id,user_id=EXCLUDED.user_id,entry_date=EXCLUDED.entry_date,
+         hours=EXCLUDED.hours,description=EXCLUDED.description,data_origin='SYNTHETIC'`,
+      [stableId(2000 + index), workIds[orderIndex], workOwners[orderIndex], date.toISOString().slice(0, 10), [1.5, 2, 3, 4][index % 4],
+        `Registro sintético de horas para operación y soporte ${date.toISOString().slice(0, 7)}.`],
     );
   }
 
@@ -208,24 +256,46 @@ async function seed() {
     await pool.query(`UPDATE project_milestones SET status='INVOICED' WHERE id=$1`, [stableId(701 + index)]);
   }
 
+  for (let month = 1; month <= 10; month++) {
+      const issueDate = new Date(Date.UTC(2026, month, month === 10 ? 26 : 0));
+      const daysInMonth = issueDate.getUTCDate();
+    const dueDate = new Date(Date.UTC(2026, month, 15));
+    for (let projectIndex = 0; projectIndex < projectIds.length; projectIndex++) {
+      const milestoneId = stableId(1100 + projectIndex * 20 + month);
+      const invoiceId = stableId(1300 + projectIndex * 20 + month);
+      const invoiceNumber = `DEMO-2026-${String(projectIndex + 1).padStart(2, '0')}-${String(month).padStart(2, '0')}`;
+      const shouldBePaid = month < 10 && (month + projectIndex) % 4 < 2;
+      const paidAt = shouldBePaid ? new Date(Date.UTC(2026, month - 1, Math.min(20, daysInMonth), 16, 0, 0)).toISOString() : null;
+      const subtotal = [1500000, 3200000, 3850000, 2300000, 2750000][projectIndex];
+      await pool.query(
+        `INSERT INTO invoices(id,customer_id,milestone_id,number,issue_date,due_date,subtotal,tax_rate,total,status,paid_at,e_invoice_status,data_origin)
+         VALUES($1,$2,$3,$4,$5,$6,$7,0,$7,$8,$9,'SIMULATED_ACCEPTED','SYNTHETIC')
+         ON CONFLICT(id) DO UPDATE SET customer_id=EXCLUDED.customer_id,milestone_id=EXCLUDED.milestone_id,number=EXCLUDED.number,
+           issue_date=EXCLUDED.issue_date,due_date=EXCLUDED.due_date,subtotal=EXCLUDED.subtotal,total=EXCLUDED.total,
+           status=EXCLUDED.status,paid_at=EXCLUDED.paid_at,e_invoice_status=EXCLUDED.e_invoice_status,data_origin='SYNTHETIC',updated_at=now()`,
+        [invoiceId, customerIds[projectIndex], milestoneId, invoiceNumber, issueDate.toISOString().slice(0, 10), dueDate.toISOString().slice(0, 10), subtotal, shouldBePaid ? 'PAID' : 'ISSUED', paidAt],
+      );
+    }
+  }
+
   const auditScopes: Array<[string, string, string, unknown[]]> = [
     ['users', 'users', `email LIKE '%@nexus.demo.invalid'`, []],
-    ['clients', 'clients', `id IN ($1,$2)`, [demoCustomerId, '00000000-0000-4000-8000-000000000102']],
-    ['sites', 'sites', `id=$1`, [demoSiteId]],
-    ['projects', 'projects', `id=$1`, [demoProjectId]],
-    ['service_contracts', 'service_contracts', `id=$1`, [demoContractId]],
+    ['clients', 'clients', `data_origin='SYNTHETIC'`, []],
+    ['sites', 'sites', `data_origin='SYNTHETIC'`, []],
+    ['projects', 'projects', `data_origin='SYNTHETIC'`, []],
+    ['service_contracts', 'service_contracts', `data_origin='SYNTHETIC'`, []],
     ['contract_scope_items', 'contract_scope_items', `contract_id=$1`, [demoContractId]],
-    ['project_milestones', 'project_milestones', `project_id=$1`, [demoProjectId]],
+    ['project_milestones', 'project_milestones', `data_origin='SYNTHETIC'`, []],
     ['findings', 'findings', `contract_id=$1`, [demoContractId]],
-    ['work_orders', 'work_orders', `contract_id=$1`, [demoContractId]],
-    ['time_entries', 'time_entries', `work_order_id=ANY($1::uuid[])`, [workIds]],
-    ['invoices', 'invoices', `customer_id=$1 AND number LIKE 'DEMO-FAC-%'`, [demoCustomerId]],
+    ['work_orders', 'work_orders', `data_origin='SYNTHETIC'`, []],
+    ['time_entries', 'time_entries', `data_origin='SYNTHETIC'`, []],
+    ['invoices', 'invoices', `data_origin='SYNTHETIC'`, []],
   ];
   for (const [entity, table, where, params] of auditScopes) {
     const rows = await pool.query<{id: string}>(`SELECT id FROM ${table} WHERE data_origin='SYNTHETIC' AND ${where}`, params);
     for (const row of rows.rows) await audit('UPSERT_SYNTHETIC', entity, row.id, { data_origin: 'SYNTHETIC' });
   }
-  console.log(`Semilla demo lista: 76 activos asignados con auditoría, 2 clientes, 8 usuarios, 1 contrato, 5 hallazgos/OT y 15 horas. Contraseña configurada sin mostrarla.`);
+  console.log(`Semilla demo lista: 76 activos asignados con auditoría; clientes, proyectos, contratos y facturación sintéticos distribuidos entre enero y octubre de 2026; 8 usuarios, hallazgos, órdenes y horas de soporte. Contraseña configurada sin mostrarla.`);
 }
 
 try {
