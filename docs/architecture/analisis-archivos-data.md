@@ -1,6 +1,6 @@
 # Análisis de los archivos Excel de Nexus Safe-Cloud ERP
 
-> **Parcialmente superado por ADR-0001.** Este análisis conserva el inventario histórico de archivos, pero la selección actual de fuentes es más restrictiva: solo `Data_para_Proveedor_ERP.xlsx` y `Equipos_Monitoreo_Red_5196.xlsx` son fuentes válidas. `Datos_PacketTracer.xlsx` y `captura_tcp-2_Grupo_Eventos_Temporales.xlsx` quedan **descartados**, no se importan ni se modelan. Sus descripciones y propuestas relacionadas se conservan aquí solo como historial y no forman parte del MVP Opción C.
+> **Alcance vigente: ADR-0001 y ADR-0002.** `Datos_PacketTracer.xlsx` sigue descartado. La captura TCP se admite únicamente para analítica agregada de metadatos; su contenido ASCII/hex no se persiste ni se muestra. La captura es evidencia puntual de laboratorio y no telemetría en vivo.
 
 Fecha de análisis: 2026-10-11  
 Alcance: inspección de solo lectura de los cuatro archivos `.xlsx` ubicados directamente en `data/`.
@@ -118,7 +118,7 @@ Ejemplos: cámara IP fija, cámara PTZ, NVR/DVR, control de acceso, panel de ala
 
 No hay seriales, IP, ubicación concreta, cliente, proyecto o equipo real. `Equipo` es un nombre de tipo y no una clave de activo. `Prioridad sugerida` es una recomendación, no un estado transaccional.
 
-## 3.4 `captura_tcp-2_Grupo Eventos Temporales.xlsx` — DESCARTADO (histórico)
+## 3.4 `captura_tcp-2_Grupo Eventos Temporales.xlsx` — analítica de metadatos (ADR-0002)
 
 Propósito probable: evidencia tabular de una captura TCP/HTTP/WebSocket para análisis de eventos temporales. Confianza alta.
 
@@ -137,7 +137,7 @@ Ejemplos de flujo: `172.28.0.12:8080` ↔ `172.28.0.1:51340`, conexiones a `8080
 | Fecha/hora UTC | Fecha-hora | Tipo fecha detectado; conservar zona UTC |
 | IP/MAC/puertos | Texto/entero | Dimensiones técnicas; IP y MAC candidatas a normalización |
 | Seq/Ack, IP ID, TTL, ventana | Entero | Metadatos de red; no son entidades ERP de negocio |
-| Payload ASCII/hex | Texto | Puede contener información técnica o sensible; no debe cargarse al ERP sin política de retención |
+| Payload ASCII/hex | Texto | No se persiste ni se devuelve por la API; solo se guarda tamaño y clasificación Texto/Binario/Otro |
 
 ## 4. Calidad y consistencia
 
@@ -170,7 +170,7 @@ No se pudieron evaluar duplicados de clientes, NIT, facturas, empleados o proyec
 
 ## 5. Relaciones entre archivos — revisar alcance vigente
 
-Las relaciones que involucren los dos Excel marcados como descartados son antecedentes históricos, no relaciones que se implementarán.
+Las relaciones de `Datos PacketTracer.xlsx` siguen descartadas. La captura TCP solo se utiliza para el módulo analítico de metadatos conforme a ADR-0002; no se relaciona con activos, clientes o dispositivos IoT registrados.
 
 | Relación | Campos | Certeza | Resultado |
 |---|---|---|---|
