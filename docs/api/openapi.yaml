@@ -559,6 +559,28 @@ paths:
               schema: {$ref: '#/components/schemas/ContractDetail'}
               example: {id: '4852ed5c-a2bb-4675-a550-b11f2e65a2b8', code: DEMO-SVC-001, status: ACTIVE, customer_name: Clínica Demo, scope: [{id: 'd72b8da3-c6bb-4e37-8890-d2b19a883d92', asset_id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', asset_name: SW-CORE-01, category: NETWORK_INFRASTRUCTURE, criticality: HIGH, signal_key: availability, included: true}]}
         '404': {$ref: '#/components/responses/NotFound'}
+  /ai/iot/captures/{id}/explain:
+    post:
+      tags: [Servicio gestionado]
+      summary: Explicar métricas agregadas de una captura IoT con Ollama
+      description: Resume estadísticas por captura. No recibe payload bruto ni consulta telemetría en vivo. Disponible para ADMIN, MANAGEMENT, IT_OPERATIONS y PMO.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Lectura explicativa de las métricas agregadas.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [analysis, model]
+                properties:
+                  analysis: {type: string}
+                  model: {type: string}
+        '400': {description: Identificador inválido.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {description: Ollama no está disponible o no tiene el modelo configurado.}
   /findings:
     get:
       tags: [Servicio gestionado]
@@ -573,6 +595,29 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/ItemsEnvelope'}
               example: {items: [{id: 'a9fd47a7-4c12-4fa6-bd8f-1ec0c827e128', asset_id: 'eb325044-19a2-4a67-9b8e-5d3022a4e701', asset_name: SW-CORE-01, severity: HIGH, status: OPEN, title: Firmware pendiente de actualización}]}
+  /ai/findings/{id}/explain:
+    post:
+      tags: [Servicio gestionado]
+      summary: Generar una sugerencia de diagnóstico con Ollama
+      description: Envía al modelo local datos técnicos del hallazgo y del activo. No ejecuta cambios. Disponible para ADMIN, IT_OPERATIONS y PMO.
+      parameters: [{$ref: '#/components/parameters/Id'}]
+      responses:
+        '200':
+          description: Análisis generado por el modelo configurado.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [analysis, model]
+                properties:
+                  analysis: {type: string}
+                  model: {type: string}
+              example: {analysis: "Resumen: Se detectó una brecha de configuración.\\nPosibles causas: ...", model: qwen2.5:3b}
+        '400': {description: Identificador inválido.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {description: Ollama no está disponible o no tiene el modelo configurado.}
   /findings/generate:
     post:
       tags: [Servicio gestionado]

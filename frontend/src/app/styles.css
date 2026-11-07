@@ -48,6 +48,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,s
 @media(max-width:760px){.shell{width:calc(100% - 32px);padding-top:10px}.app-header{position:relative;flex-direction:column;align-items:stretch;gap:12px;padding:10px 0 13px}.brand-link{min-width:0}.header-tools{align-items:stretch;flex-direction:row;justify-content:space-between;gap:8px}.primary-nav{justify-content:flex-start;flex-wrap:wrap}.primary-nav a,.nav-group summary{min-height:36px;padding:7px 9px}.nav-menu{left:0}.logout-button{align-self:flex-start}.app-header nav{width:100%}}
 @media(max-width:520px){.header-tools{align-items:flex-start;flex-direction:column}.primary-nav{justify-content:flex-start;gap:3px}.nav-group summary,.primary-nav .nav-home{font-size:12px}.nav-menu{min-width:190px}.hero{gap:16px;align-items:flex-start;flex-direction:column}.hero h2{font-size:32px}.card{padding:18px}.toolbar{gap:10px}.table-wrap{margin-inline:-8px}.procurement-row-actions{gap:8px}}
 td .link+ .link{margin-inline-start:12px}
+.ai-analysis{margin:16px 0;padding:16px 18px;border:1px solid #d7eae8;border-radius:12px;background:#f5fbfa}.ai-analysis-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#1f4653}.ai-analysis-heading span,.ai-analysis-note{color:#718097;font-size:12px}.ai-analysis-note{margin:6px 0 10px}.ai-analysis pre{margin:0;color:#30465c;font:inherit;font-size:14px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
 button:disabled{opacity:.56;cursor:not-allowed}
 /* Grouped navigation opens on hover or keyboard focus; it never stays toggled open. */
 .app-header{z-index:20}
@@ -90,3 +91,4 @@ input[type="checkbox"]:focus-visible{outline:3px solid rgba(45,169,162,.28);outl
 .billing-accordion>summary:hover{background:#f8fbfc}
 .billing-accordion-content{padding:0 24px 22px;border-top:1px solid #edf1f5}
 @media(max-width:600px){.billing-accordion>summary{padding:17px}.billing-accordion-content{padding:0 16px 17px}}
+.iot-hero-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}.iot-ai-button{white-space:nowrap}.iot-ai-analysis{margin-bottom:18px}.iot-ai-analysis pre{margin:0;color:#30465c;font:inherit;font-size:14px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}

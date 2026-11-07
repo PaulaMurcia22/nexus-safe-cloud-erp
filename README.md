@@ -70,6 +70,8 @@ Abre `backend/.env` con un editor de texto y completa, como mínimo, estos datos
 NODE_ENV=development
 PORT=3001
 FRONTEND_ORIGIN=http://localhost:5173
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:3b
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=nexuserpm
@@ -83,6 +85,16 @@ ADMIN_NAME=Tu nombre
 Reemplaza los valores de ejemplo. `DB_PASSWORD` es la contraseña de PostgreSQL. `ADMIN_PASSWORD` será la contraseña para entrar al ERP y debe tener al menos 12 caracteres. Usa una contraseña distinta de la de PostgreSQL. No escribas comillas alrededor de los valores. Guarda el archivo como texto plano con el nombre exacto `.env`, dentro de `backend`.
 
 No compartas `backend/.env` ni lo envíes al repositorio. La configuración de desarrollo ya tiene un secreto de sesión temporal; antes de publicar el ERP en un servidor, la persona responsable debe configurar un `SESSION_SECRET` privado de al menos 32 caracteres.
+
+### Asistente de diagnóstico con Ollama (opcional)
+
+El asistente de **Hallazgos** genera resúmenes y verificaciones sugeridas. El módulo **Métricas IoT** también puede analizar una captura importada, usando estadísticas agregadas de paquetes, protocolos y puertos. Esta opción no necesita registros de hallazgos. No es necesario Ollama para iniciar el ERP. Instálalo en el mismo computador donde corre el backend y descarga el modelo configurado:
+
+```text
+ollama pull qwen2.5:3b
+```
+
+Mantén Ollama iniciado mientras uses el asistente. Si usas otro modelo, actualiza `OLLAMA_MODEL` en `backend/.env`; si Ollama está en otro host accesible desde el backend, configura `OLLAMA_BASE_URL` para que apunte a un servidor de confianza. Para IoT, el backend envía estadísticas agregadas; no envía IP, nombre del archivo ni contenido bruto de paquetes. La respuesta no detecta actividad en vivo ni confirma incidentes. La interfaz muestra el análisis IoT a ADMIN, MANAGEMENT, IT_OPERATIONS y PMO. La IA no modifica datos del ERP; revisa sus sugerencias antes de actuar.
 
 ### Paso 4: crea la base de datos vacía
 

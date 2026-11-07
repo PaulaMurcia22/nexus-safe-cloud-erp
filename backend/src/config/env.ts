@@ -6,6 +6,8 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   FRONTEND_ORIGIN: z.string().url().default('http://localhost:5173'),
   SESSION_SECRET: z.string().min(32).optional(),
+  OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
+  OLLAMA_MODEL: z.string().trim().min(1).default('qwen2.5:3b'),
   DB_HOST: z.string().min(1), DB_PORT: z.coerce.number().int().positive().default(5432),
   DB_NAME: z.string().min(1), DB_USER: z.string().min(1), DB_PASSWORD: z.string()
 });

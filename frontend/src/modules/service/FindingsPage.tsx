@@ -15,9 +15,12 @@ export function FindingsPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [creatingId, setCreatingId] = useState('');
+  const [analyzingId, setAnalyzingId] = useState('');
+  const [aiAnalyses, setAiAnalyses] = useState<Record<string,{analysis:string;model:string}>>({});
   const [editing, setEditing] = useState<any>();
   const [nextStatus, setNextStatus] = useState('OPEN');
   const canCreateOrder = ['ADMIN','IT_OPERATIONS','PMO'].includes(user?.role ?? '');
+  const canAnalyze = ['ADMIN','IT_OPERATIONS','PMO'].includes(user?.role ?? '');
   const canEditStatus = ['ADMIN','IT_OPERATIONS','TECHNICIAN'].includes(user?.role ?? '');
   const load = () => managedApi.findings().then((result) => setItems(result.items)).catch((cause) => setError(cause.message));
 
@@ -31,6 +34,15 @@ export function FindingsPage() {
     try { const order = await managedApi.createWorkOrderFromFinding(findingId); setNotice(`Orden de trabajo ${order.code} creada.`); }
     catch (cause) { setError((cause as Error).message); }
     finally { setCreatingId(''); }
+  }
+
+  async function explainFinding(findingId: string) {
+    setError(''); setNotice(''); setAnalyzingId(findingId);
+    try {
+      const result = await managedApi.explainFinding(findingId);
+      setAiAnalyses((current) => ({ ...current, [findingId]: result }));
+    } catch (cause) { setError((cause as Error).message); }
+    finally { setAnalyzingId(''); }
   }
 
   async function saveStatus(event: React.FormEvent<HTMLFormElement>) {
@@ -59,10 +71,19 @@ export function FindingsPage() {
             <td><span className={`status-pill ${['RESOLVED','WONT_FIX'].includes(finding.status)?'off':'on'}`}>{stateLabels[finding.status] || finding.status}</span></td>
             <td className="finding-actions">
               {canEditStatus && <button className="link" onClick={() => { setError(''); setEditing(finding); setNextStatus(finding.status); }}>Editar estado</button>}
+              {canAnalyze && <button className="ghost" disabled={analyzingId === finding.id} onClick={() => void explainFinding(finding.id)}>{analyzingId === finding.id ? 'Analizando…' : aiAnalyses[finding.id] ? 'Volver a analizar' : 'Analizar con IA'}</button>}
               {canCreateOrder && <button className="ghost" disabled={creatingId === finding.id} onClick={() => void createWorkOrder(finding.id)}>{creatingId === finding.id ? 'Creando…' : 'Crear orden de trabajo'}</button>}
             </td>
           </tr>)}</tbody>
         </table>
+        {Object.entries(aiAnalyses).map(([findingId, result]) => {
+          const finding = items.find((item) => item.id === findingId);
+          return <article className="ai-analysis" key={findingId}>
+            <div className="ai-analysis-heading"><strong>Diagnóstico IA · {finding?.asset_name ?? 'Hallazgo'}</strong><span>Modelo local: {result.model}</span></div>
+            <p className="ai-analysis-note">Sugerencias generadas por IA; valida los pasos con una persona técnica antes de actuar.</p>
+            <pre>{result.analysis}</pre>
+          </article>;
+        })}
         {!items.length && <p className="empty">No hay hallazgos registrados.</p>}
       </div>
     </section>

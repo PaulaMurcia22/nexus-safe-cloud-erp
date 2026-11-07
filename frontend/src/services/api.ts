@@ -13,6 +13,7 @@ export const managedApi={
   contract:(id:string)=>request<Record<string,any>>(`/service-contracts/${id}`),
   createContract:(d:unknown)=>request<Record<string,any>>('/service-contracts',{method:'POST',body:JSON.stringify(d)}),
   findings:(q='')=>request<{items:Array<Record<string,any>>}>(`/findings${q?`?${q}`:''}`),
+  explainFinding:(id:string)=>request<{analysis:string;model:string}>(`/ai/findings/${id}/explain`,{method:'POST',body:JSON.stringify({})}),
   generateFindings:(contractId:string)=>request<{created:number}>('/findings/generate?contractId='+encodeURIComponent(contractId),{method:'POST'}),
   setFindingStatus:(id:string,status:string)=>request<Record<string,any>>(`/findings/${id}/status`,{method:'PATCH',body:JSON.stringify({status})}),
   createWorkOrderFromFinding:(id:string)=>request<Record<string,any>>(`/findings/${id}/work-order`,{method:'POST'}),
@@ -40,5 +41,6 @@ export const managedApi={
 export const iotApi={
   captures:()=>request<{items:Array<Record<string,any>>}>('/iot/captures'),
   capture:(id:string)=>request<Record<string,any>>(`/iot/captures/${id}`),
+  explainCapture:(id:string)=>request<{analysis:string;model:string}>(`/ai/iot/captures/${id}/explain`,{method:'POST',body:JSON.stringify({})}),
   async importCapture(file:File){const response=await fetch(`${base}/iot/captures/import`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','X-File-Name':encodeURIComponent(file.name)},body:file});const result=await response.json().catch(()=>null);if(!response.ok)throw new Error(result?.error||'No fue posible importar la captura.');return result as Record<string,any>;},
 };
