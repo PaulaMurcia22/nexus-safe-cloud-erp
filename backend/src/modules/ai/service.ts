@@ -44,7 +44,7 @@ async function askOllama(system: string, prompt: string) {
           { role: 'user', content: prompt },
         ],
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(180_000),
     });
   } catch {
     throw new HttpError(503, 'No fue posible conectar con Ollama. Confirma que esté iniciado y accesible desde el backend.');

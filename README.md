@@ -68,7 +68,7 @@ Abre `backend/.env` con un editor de texto y completa, como mínimo, estos datos
 
 ```env
 NODE_ENV=development
-PORT=3001
+PORT=3000
 FRONTEND_ORIGIN=http://localhost:5173
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:3b
@@ -157,7 +157,7 @@ En la primera terminal, inicia el servidor:
 npm run dev:backend
 ```
 
-Espera el mensaje `Backend escuchando en http://localhost:3001`.
+Espera el mensaje `Backend escuchando en http://localhost:3000`.
 
 En la segunda terminal, inicia la página web:
 
@@ -233,7 +233,7 @@ Si usas pgAdmin, abre cada archivo indicado, confirma que la base seleccionada s
 
 ### Finaliza y comprueba la actualización
 
-1. Inicia el backend con `npm run dev:backend` y espera `Backend escuchando en http://localhost:3001`.
+1. Inicia el backend con `npm run dev:backend` y espera `Backend escuchando en http://localhost:3000`.
 2. Inicia el frontend en otra terminal con `npm run dev:frontend`.
 3. Abre `http://localhost:5173` e inicia sesión con tu usuario y contraseña de siempre.
 4. Revisa que puedas abrir Inicio y los módulos que usas, por ejemplo Clientes, Facturación, Compras y Contabilidad.
@@ -259,6 +259,34 @@ Los Excel de red corresponden a inventario/catálogos técnicos y no acreditan c
 - [Documentación de API](docs/api/README.md)
 - [Dominio de red](docs/architecture/network-domain.md)
 - [Guion de demostración](docs/mvp/guion-demo.md)
+
+## Ejecución con Docker
+
+La configuración Docker local mantiene el ERP como un monolito modular y separa frontend Nginx, backend Node.js, PostgreSQL persistente y Ollama opcional. Por defecto, Compose carga los datos sintéticos e importados de demostración al iniciar el backend.
+
+Requiere Docker Engine/Desktop con Docker Compose y un `.env` en la raíz con `DB_PASSWORD` y `SESSION_SECRET` definidos. Inicia el entorno con:
+
+```text
+docker compose up --build
+```
+
+El frontend queda en `http://localhost:5173`, el backend en `http://localhost:3000`, y los healthchecks en `/api/health` y `/api/health/db`. En un volumen PostgreSQL nuevo se ejecutan los scripts estructurales `01` a `18` en orden. Después, el backend carga automáticamente el administrador, los datos de red, el catálogo y la demo sintética.
+
+La carga automática se controla con `LOAD_DEMO_DATA=true`. Para iniciar solo la estructura y el administrador, usa `LOAD_DEMO_DATA=false`. Los archivos utilizados son `data/Data_para_Proveedor_ERP.xlsx` y `data/Equipos_Monitoreo_Red_5196.xlsx`; `Datos_PacketTracer.xlsx` no se importa.
+
+El backend crea el administrador inicial automáticamente antes de iniciar la API usando `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `ADMIN_NAME` del `.env` raíz. La operación es idempotente: si el correo ya existe, no reemplaza su contraseña.
+
+Ollama se inicia automáticamente junto con el resto de servicios:
+
+```text
+docker compose up --build
+```
+
+El modelo configurado es `qwen2.5:3b`. La primera ejecución puede tardar porque descarga el modelo y lo guarda en el volumen `ollama_models`; las siguientes ejecuciones reutilizan ese volumen. Si Ollama no está disponible, el ERP continúa funcionando y solo se deshabilitan las funciones de análisis IA.
+
+Para detener y conservar datos usa `docker compose stop` y para reanudar `docker compose start`. No uses `docker compose down -v` como procedimiento normal porque elimina el volumen de PostgreSQL.
+
+La ejecución tradicional sin Docker sigue disponible usando `DB_HOST=localhost`, `OLLAMA_BASE_URL=http://localhost:11434` y `VITE_API_URL=http://localhost:3000/api`.
 
 ## Ejecutar verificaciones (opcional)
 
