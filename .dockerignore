@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+dist
+coverage
+*.log
+*.tmp
+*.backup
+data
+backend/.env
+backend/dist
+frontend/dist

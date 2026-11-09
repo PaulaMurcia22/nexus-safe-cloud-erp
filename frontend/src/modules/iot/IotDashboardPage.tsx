@@ -12,6 +12,7 @@ export function IotDashboardPage() {
   const { user } = useAuth();
   const canUpload = ['ADMIN','IT_OPERATIONS'].includes(user?.role || '');
   const [captures, setCaptures] = useState<any[]>([]), [captureId, setCaptureId] = useState(''), [data, setData] = useState<any>(), [loading, setLoading] = useState(true), [uploading, setUploading] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [tab, setTab] = useState<'payloads'|'conversations'>('payloads'), [query, setQuery] = useState(''), [typeFilter, setTypeFilter] = useState('ALL'), [page, setPage] = useState(1);
+  const [analyzing, setAnalyzing] = useState(false), [aiAnalysis, setAiAnalysis] = useState<{analysis:string;model:string}>();
   const pageSize = 10;
 
   async function refreshCaptures(preferred?: string) {
@@ -26,10 +27,18 @@ export function IotDashboardPage() {
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; if (!file) return;
-    setUploading(true); setError(''); setNotice('');
+    setUploading(true); setError(''); setNotice(''); setAiAnalysis(undefined);
     try { const result = await iotApi.importCapture(file); setNotice('Captura importada. Se conservaron solo métricas y metadatos; el contenido bruto no se guardó.'); await refreshCaptures(result.id); }
     catch (e) { setError((e as Error).message); }
     finally { setUploading(false); event.target.value = ''; }
+  }
+
+  async function analyzeCapture() {
+    if (!captureId) return;
+    setAnalyzing(true); setError(''); setAiAnalysis(undefined);
+    try { setAiAnalysis(await iotApi.explainCapture(captureId)); }
+    catch (e) { setError((e as Error).message); }
+    finally { setAnalyzing(false); }
   }
 
   const typeData = useMemo(() => Object.entries(data?.payloadCounts || {}).map(([name, value]) => ({ name: name === 'TEXT' ? 'Texto / JSON' : name === 'BINARY' ? 'Binario' : 'Otro', value: Number(value) })), [data]);
@@ -43,11 +52,12 @@ export function IotDashboardPage() {
   const rows = visibleRows.slice((page - 1) * pageSize, page * pageSize);
 
   return <>
-    <section className="hero page-hero iot-hero"><div><span className="eyebrow">OPERACIONES · TELEMETRÍA</span><h2>Monitoreo de dispositivos IoT</h2><p>Análisis de tráfico de red y conversaciones importadas para operación técnica.</p></div>{canUpload && <label className="iot-upload">{uploading ? 'Procesando Excel…' : 'Importar captura .xlsx'}<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={uploading} onChange={handleUpload}/></label>}</section>
+    <section className="hero page-hero iot-hero"><div><span className="eyebrow">OPERACIONES · TELEMETRÍA</span><h2>Monitoreo de dispositivos IoT</h2><p>Análisis de tráfico de red y conversaciones importadas para operación técnica.</p></div><div className="iot-hero-actions">{data && <button className="iot-ai-button" disabled={analyzing} onClick={() => void analyzeCapture()}>{analyzing ? 'Analizando captura…' : aiAnalysis ? 'Volver a analizar' : 'Analizar captura con IA'}</button>}{canUpload && <label className="iot-upload">{uploading ? 'Procesando Excel…' : 'Importar captura .xlsx'}<input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={uploading} onChange={handleUpload}/></label>}</div></section>
     {error && <div className="error" role="alert">{error}</div>}{notice && <div className="success" role="status">{notice}</div>}
-    <section className="card iot-toolbar"><div><strong>Captura</strong><small>Selecciona una importación para consultar sus métricas.</small></div><select aria-label="Seleccionar captura" value={captureId} onChange={e => { setPage(1); setCaptureId(e.target.value); }}><option value="">Sin capturas</option>{captures.map(c => <option key={c.id} value={c.id}>{c.name} · {date(c.importedAt)}</option>)}</select></section>
+    <section className="card iot-toolbar"><div><strong>Captura</strong><small>Selecciona una importación para consultar sus métricas.</small></div><select aria-label="Seleccionar captura" value={captureId} onChange={e => { setPage(1); setAiAnalysis(undefined); setCaptureId(e.target.value); }}><option value="">Sin capturas</option>{captures.map(c => <option key={c.id} value={c.id}>{c.name} · {date(c.importedAt)}</option>)}</select></section>
     {loading && <section className="card">Cargando métricas…</section>}
     {!loading && !data && <section className="card iot-empty"><h3>Sin capturas importadas</h3><p>Importa un libro .xlsx con las hojas Resumen, Paquetes, Payloads y Conversaciones para generar el dashboard.</p></section>}
+    {aiAnalysis && <section className="card iot-ai-analysis" aria-live="polite"><div className="ai-analysis-heading"><strong>Lectura asistida de la captura</strong><span>Ollama · {aiAnalysis.model}</span></div><p className="ai-analysis-note">Resumen de estadísticas agregadas. No detecta actividad en vivo ni sustituye una revisión técnica.</p><pre>{aiAnalysis.analysis}</pre></section>}
     {data && <>
       <section className="iot-kpis">
         <article className="stat-card"><span>Total de paquetes</span><strong>{Number(data.totalPackets).toLocaleString('es-CO')}</strong><small>{Number(data.packetsWithPayload).toLocaleString('es-CO')} con payload</small></article>

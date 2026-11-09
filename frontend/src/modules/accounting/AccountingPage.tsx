@@ -3,7 +3,7 @@ import {Modal} from '../../components/Modal';
 import {useAuth} from '../../app/AuthContext';
 import './accounting.css';
 
-const base=import.meta.env.VITE_API_URL||'http://localhost:3001/api';
+const base=import.meta.env.VITE_API_URL||'http://localhost:3000/api';
 async function request<T>(path:string,options:RequestInit={}):Promise<T>{const r=await fetch(`${base}${path}`,{credentials:'include',headers:{'Content-Type':'application/json',...options.headers},...options});if(r.status===204)return undefined as T;const b=await r.json().catch(()=>null);if(!r.ok)throw new Error(b?.error||'No fue posible completar la operación.');return b as T;}
 const today=new Date().toISOString().slice(0,10), yearStart=`${new Date().getFullYear()}-01-01`;
 const money=(value:number|string)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(value)||0);

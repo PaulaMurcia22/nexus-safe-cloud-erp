@@ -1,0 +1,19 @@
+\set ON_ERROR_STOP on
+\i /opt/nexus-sql/01_Create_tb_users.sql
+\i /opt/nexus-sql/02_Create_tb_clients.sql
+\i /opt/nexus-sql/03_Create_tb_projects.sql
+\i /opt/nexus-sql/04_Create_network_domain.sql
+\i /opt/nexus-sql/05_Alter_sites_customer_scope.sql
+\i /opt/nexus-sql/06_Create_vlans.sql
+\i /opt/nexus-sql/07_Create_monitoring_catalog_and_contracts.sql
+\i /opt/nexus-sql/08_Create_findings_and_work.sql
+\i /opt/nexus-sql/09_Create_billing.sql
+\i /opt/nexus-sql/10_Alter_roles_and_origin.sql
+\i /opt/nexus-sql/11_Create_auth_events_and_sessions.sql
+\i /opt/nexus-sql/12_Alter_network_assets_data_origin.sql
+\i /opt/nexus-sql/13_Create_iot_capture_analytics.sql
+\i /opt/nexus-sql/14_Create_crm_opportunities.sql
+\i /opt/nexus-sql/15_Create_saas_subscriptions.sql
+\i /opt/nexus-sql/16_Create_procurement_expenses.sql
+\i /opt/nexus-sql/17_Create_accounting.sql
+\i /opt/nexus-sql/18_Create_hr_employees.sql

@@ -4,7 +4,7 @@ import { Modal } from '../../components/Modal';
 import { Toast } from '../../components/Toast';
 import './hr.css';
 
-const base=import.meta.env.VITE_API_URL||'http://localhost:3001/api';
+const base=import.meta.env.VITE_API_URL||'http://localhost:3000/api';
 const locations:Record<string,string>={MEDELLIN:'Medellín',BOGOTA:'Bogotá',REMOTE_SHARED:'Remoto'};
 const statuses:Record<string,string>={ACTIVE:'Activo',ON_LEAVE:'En licencia',INACTIVE:'Inactivo'};
 const contractTypes:Record<string,string>={FULL_TIME:'Indefinido',FIXED_TERM:'Término fijo',CONTRACTOR:'Prestación de servicios',PART_TIME:'Medio tiempo'};

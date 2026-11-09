@@ -1,0 +1,97 @@
+services:
+  db:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: ${DB_NAME:-nexuserpm}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en el entorno o en un archivo .env}
+    ports:
+      - "${DB_PUBLISHED_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/docker-init/01_init_schema.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
+      - ./database/scripts:/opt/nexus-sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [nexus]
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      SESSION_SECRET: ${SESSION_SECRET:?Define SESSION_SECRET en el entorno o en un archivo .env}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-nexuserpm}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en el entorno o en un archivo .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?Define ADMIN_EMAIL en el entorno o en un archivo .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Define ADMIN_PASSWORD en el entorno o en un archivo .env}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrador}
+      DEMO_USERS_PASSWORD: ${DEMO_USERS_PASSWORD:?Define DEMO_USERS_PASSWORD en el entorno o en un archivo .env}
+      LOAD_DEMO_DATA: ${LOAD_DEMO_DATA:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/opt/nexus-data:ro
+      - ./database:/database:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health/db').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [nexus]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [nexus]
+
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+    entrypoint: ["/bin/sh", "-c"]
+    command: >-
+      "ollama serve & pid=$$!;
+      until ollama list >/dev/null 2>&1; do sleep 2; done;
+      ollama pull $$OLLAMA_MODEL;
+      wait $$pid"
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [nexus]
+
+volumes:
+  postgres_data:
+  ollama_models:
+
+networks:
+  nexus:
+    driver: bridge

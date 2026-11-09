@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '../../components/Modal';
 import { Toast } from '../../components/Toast';
 
-const apiBase=import.meta.env.VITE_API_URL||'http://localhost:3001/api';
+const apiBase=import.meta.env.VITE_API_URL||'http://localhost:3000/api';
 async function request<T>(path:string, options:RequestInit={}):Promise<T>{const response=await fetch(`${apiBase}${path}`,{credentials:'include',headers:{'Content-Type':'application/json',...options.headers},...options});if(response.status===204)return undefined as T;const body=await response.json().catch(()=>null);if(!response.ok)throw new Error(body?.error||'No fue posible completar la operación.');return body as T;}
 const money=(n:number,currency='COP')=>new Intl.NumberFormat('es-CO',{style:'currency',currency,maximumFractionDigits:0}).format(Number(n)||0);
 const today=new Date().toISOString().slice(0,10);

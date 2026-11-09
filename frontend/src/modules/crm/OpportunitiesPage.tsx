@@ -3,7 +3,7 @@ import { useAuth } from '../../app/AuthContext';
 import { Modal } from '../../components/Modal';
 import { Toast } from '../../components/Toast';
 
-const base = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const base = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const stages = ['LEAD','QUALIFIED','PROPOSAL','NEGOTIATION','WON','LOST'] as const;
 type Stage = typeof stages[number];
 type Opportunity = {id:string;customerId:string|null;companyName:string;customerName:string|null;title:string;stage:Stage;expectedMrr:number|string;probability:number;closeDate:string|null;source:string;notes:string|null};
