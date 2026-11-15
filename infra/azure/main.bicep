@@ -37,7 +37,7 @@ param ollamaModel string = 'qwen2.5:3b'
 var uniqueSuffix = uniqueString(resourceGroup().id, namePrefix)
 var acrName = toLower(replace('${namePrefix}${uniqueSuffix}', '-', ''))
 var logName = '${namePrefix}-logs-${uniqueSuffix}'
-var envName = '${namePrefix}-aca-${uniqueSuffix}'
+var envName = '${namePrefix}-${environmentName}-aca-${uniqueSuffix}'
 var postgresName = toLower('${namePrefix}-pg-${uniqueSuffix}')
 
 module logs './modules/log-analytics.bicep' = {
