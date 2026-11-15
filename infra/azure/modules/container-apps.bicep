@@ -28,7 +28,6 @@ resource backend 'Microsoft.App/containerApps@2023-05-01' = {
   name: backendName
   location: resourceGroup().location
   properties: {
-    workloadProfileName: 'Consumption'
     managedEnvironmentId: environmentId
     configuration: {
       registries: [{ server: registryLoginServer, identity: 'system' }]
@@ -62,7 +61,7 @@ resource backend 'Microsoft.App/containerApps@2023-05-01' = {
           { name: 'OLLAMA_BASE_URL', value: ollamaBaseUrl }
           { name: 'OLLAMA_MODEL', value: ollamaModel }
         ]
-        resources: { cpu: 0.5, memory: '1Gi' }
+        resources: { cpu: json('0.5'), memory: '1Gi' }
       }]
       scale: {
         minReplicas: backendMinReplicas
@@ -78,14 +77,13 @@ resource frontend 'Microsoft.App/containerApps@2023-05-01' = {
   name: frontendName
   location: resourceGroup().location
   properties: {
-    workloadProfileName: 'Consumption'
     managedEnvironmentId: environmentId
     configuration: {
       ingress: { external: true, targetPort: 80, transport: 'http', allowInsecure: false }
       registries: [{ server: registryLoginServer, identity: 'system' }]
     }
     template: {
-      containers: [{ name: frontendName, image: frontendImage, resources: { cpu: 0.25, memory: '0.5Gi' } }]
+      containers: [{ name: frontendName, image: frontendImage, resources: { cpu: json('0.25'), memory: '0.5Gi' } }]
       scale: { minReplicas: frontendMinReplicas, maxReplicas: frontendMaxReplicas }
     }
   }
