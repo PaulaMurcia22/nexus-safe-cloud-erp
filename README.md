@@ -25,6 +25,10 @@ npm --version
 psql --version
 ```
 
+## Mensajería RabbitMQ
+
+Compose inicia RabbitMQ junto con el ERP. La creación de proyectos publica `project.created` mediante Transactional Outbox y el consumidor registra la recepción idempotente en PostgreSQL. El backend continúa siendo un monolito modular; RabbitMQ aporta desacoplamiento y consistencia eventual, no microservicios independientes. La consola local está en `http://localhost:15672`. La documentación detallada está en [RT1 — Sistemas Distribuidos](docs/architecture/distributed-systems/RT1-Sistemas-Distribuidos.md).
+
 Si alguno responde que el comando no existe, instala el programa correspondiente o solicita ayuda a quien administra tu computador. En macOS, Terminal está en Aplicaciones > Utilidades. En Windows, abre PowerShell desde el menú Inicio.
 
 ### Paso 1: abre la carpeta del proyecto

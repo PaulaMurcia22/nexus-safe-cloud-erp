@@ -17,3 +17,4 @@
 \i /opt/nexus-sql/16_Create_procurement_expenses.sql
 \i /opt/nexus-sql/17_Create_accounting.sql
 \i /opt/nexus-sql/18_Create_hr_employees.sql
+\i /opt/nexus-sql/19_Create_messaging.sql
