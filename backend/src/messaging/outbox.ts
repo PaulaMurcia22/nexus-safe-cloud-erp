@@ -1,0 +1,7 @@
+import type {PoolClient} from 'pg';
+import {pool} from '../config/database.js';
+import {createProjectCreatedEvent,PROJECT_CREATED_TYPE,PROJECT_CREATED_VERSION,PROJECT_CREATED_ROUTING_KEY} from './contracts.js';
+import {publishEvent} from './broker.js';
+
+export async function enqueueProjectCreated(client:PoolClient,project:Record<string,unknown>){const event=createProjectCreatedEvent(project);await client.query(`INSERT INTO outbox_events(event_id,event_type,event_version,aggregate_type,aggregate_id,occurred_at,correlation_id,payload) VALUES($1,$2,$3,'project',$4,$5,$6,$7)`,[event.eventId,PROJECT_CREATED_TYPE,PROJECT_CREATED_VERSION,event.entityId,event.occurredAt,event.correlationId,event]);}
+export async function publishPendingOutbox(){const rows=(await pool.query(`SELECT event_id,payload FROM outbox_events WHERE status IN ('PENDING','FAILED') AND next_attempt_at<=now() ORDER BY occurred_at LIMIT 20`)).rows;for(const row of rows){try{await pool.query(`UPDATE outbox_events SET attempts=attempts+1 WHERE event_id=$1`,[row.event_id]);await publishEvent(row.payload,PROJECT_CREATED_ROUTING_KEY);await pool.query(`UPDATE outbox_events SET status='PUBLISHED',published_at=now(),last_error=NULL WHERE event_id=$1`,[row.event_id]);}catch(e){await pool.query(`UPDATE outbox_events SET status='FAILED',next_attempt_at=now()+interval '5 seconds',last_error=$2 WHERE event_id=$1`,[row.event_id,e instanceof Error?e.message:String(e)]);}}}

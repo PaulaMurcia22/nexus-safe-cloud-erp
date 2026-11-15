@@ -39,6 +39,9 @@ services:
       LOAD_DEMO_DATA: ${LOAD_DEMO_DATA:-true}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://nexus:rabbitmq-local-only@rabbitmq:5672}
+      RABBITMQ_MAX_CONSUMER_RETRIES: ${RABBITMQ_MAX_CONSUMER_RETRIES:-3}
     ports:
       - "3000:3000"
     volumes:
@@ -47,8 +50,27 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health/db').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [nexus]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-nexus}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-rabbitmq-local-only}
+    ports:
+      - "${RABBITMQ_PUBLISHED_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -91,6 +113,7 @@ services:
 volumes:
   postgres_data:
   ollama_models:
+  rabbitmq_data:
 
 networks:
   nexus:
