@@ -158,17 +158,29 @@ Azure, la alta disponibilidad, el failover y la escalabilidad cloud deben presen
 
 ## 8. Impacto esperado en rentabilidad y control financiero
 
-El ERP puede apoyar la rentabilidad y el control financiero porque relaciona información que antes estaba dispersa:
+La arquitectura propuesta contribuye al control financiero de Nexus Safe-Cloud al integrar en una misma plataforma la información de clientes, contratos, proyectos, recursos, horas, facturas, pagos, compras y gastos.
 
-- Los proyectos pueden relacionarse con horas y responsables.
-- Las facturas pueden relacionarse con clientes, contratos y proyectos.
-- Los pagos pueden consultarse junto con la cartera.
-- Los gastos y compras pueden organizarse para los reportes.
-- La gerencia puede consultar información consolidada.
+Esta integración permite relacionar la operación diaria con la información financiera de la empresa. Los proyectos pueden asociarse con sus responsables, horas trabajadas, contratos, hitos y facturas, facilitando el seguimiento de los compromisos adquiridos y de los ingresos relacionados con cada servicio.
 
-Sin embargo, el sistema no debe presentarse como una solución que ya demuestra una rentabilidad específica. Para calcularla completamente se requieren tarifas por hora, costos laborales, prestaciones, gastos imputables, ingresos por proyecto y reglas de asignación.
+La gestión de recursos y horas permite conocer el esfuerzo utilizado en los proyectos y comparar el trabajo realizado con la planificación establecida. Esto facilita la identificación de desviaciones, el seguimiento de la carga operativa y la toma de decisiones sobre la asignación del equipo técnico.
 
-Los indicadores financieros detallados, sus fórmulas y los costos de Azure deben completarse junto con el Requisito Técnico 4 y el integrante encargado del impacto financiero.
+El módulo de Facturación centraliza las facturas, pagos, estados y saldos pendientes. La información de cartera permite organizar las obligaciones por antigüedad y realizar un seguimiento más ordenado de los pagos. De esta manera, el área financiera puede consultar la situación de los clientes y priorizar las actividades de recaudo.
+
+La relación entre contratos, proyectos, hitos y facturas también contribuye a reducir errores y reprocesos administrativos. La información se registra una vez y puede ser utilizada por los módulos que la necesitan, evitando depender de archivos separados o de la digitación repetida de los mismos datos.
+
+La gestión de compras, gastos y registros contables complementa la información de ingresos y permite consolidar los movimientos financieros de la empresa. Esto facilita que la gerencia consulte información operativa y financiera desde una misma plataforma para apoyar sus decisiones.
+
+En conjunto, la solución contribuye a:
+- Mejorar la visibilidad de ingresos, gastos, proyectos y cartera.
+- Relacionar el trabajo realizado con los servicios contratados.
+- Facilitar el seguimiento de horas y recursos utilizados.
+- Reducir errores derivados de información duplicada.
+- Mejorar el control de facturas y pagos.
+- Centralizar la información necesaria para analizar los resultados de los proyectos.
+- Proporcionar información consolidada para la toma de decisiones gerenciales.
+- Fortalecer la trazabilidad de las operaciones financieras y administrativas.
+
+Por lo tanto, la arquitectura empresarial alinea los módulos tecnológicos con los objetivos estratégicos de Nexus Safe-Cloud: mejorar el control de la operación, reducir reprocesos, fortalecer la gestión financiera y contar con información confiable para dirigir la compañía.
 
 ## 10. Consistencia de la propuesta
 
@@ -184,27 +196,8 @@ La propuesta es coherente con el estado actual del proyecto porque:
 
 La consistencia entre sedes se aborda inicialmente mediante una única fuente central de datos. Si en el futuro se necesitara autonomía operativa por sede, se podría estudiar una arquitectura de replicación asíncrona, pero eso requeriría resolver propiedad de datos, conflictos, seguridad y recuperación.
 
-## 11. Información pendiente
 
-Para completar la arquitectura empresarial se deben validar:
-
-- Tarifas y costos laborales por hora.
-- Forma de calcular la rentabilidad de cada proyecto.
-- Reglas para asignar gastos a proyectos.
-- Responsables de la calidad de cada dominio de datos.
-- Alcance definitivo de la disponibilidad técnica.
-- Despliegue real en Azure.
-- Costos y límites de los servicios cloud.
-- Indicadores que la gerencia utilizará en la sustentación.
-
-## 12. Relación con los demás requisitos
-
-- **RT1:** aporta REST, RabbitMQ, Outbox, idempotencia y procesamiento asíncrono.
-- **RT2:** aporta la propuesta de despliegue centralizado en Azure.
-- **RT4:** debe completar costos, presupuesto, riesgos económicos y consumo cloud.
-- **RT5:** debe consolidar el modelo de dominio, vistas, ADRs y contratos técnicos.
-
-## 13. Cierre del requisito
+## 11. Cierre del requisito
 
 La arquitectura empresarial conecta los problemas de Nexus Safe-Cloud con una solución ERP centralizada. Proyectos, Facturación, Recursos y Redes no realizan exactamente el mismo trabajo, pero utilizan una información común que reduce duplicidades y facilita la coordinación.
 
