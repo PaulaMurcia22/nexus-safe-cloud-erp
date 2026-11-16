@@ -59,13 +59,13 @@ function Layout() {
       <div className="header-tools">
         <nav className="primary-nav" aria-label="Navegación principal">
           <Link className={`nav-home ${pathname === '/' ? 'current' : ''}`} to="/">Inicio</Link>
-          <div className={`nav-group ${touchMenu==='Comercial'?'is-open':''} ${activeGroup(['/clients','/opportunities','/subscriptions']) ? 'group-current' : ''}`} onMouseEnter={()=>setTouchMenu('Comercial')} onMouseLeave={()=>{if(!window.matchMedia('(hover: none)').matches)setTouchMenu('')}}>
+          {can(role,['ADMIN','MANAGEMENT','COMMERCIAL','FINANCE','IT_OPERATIONS','PMO'])&&<div className={`nav-group ${touchMenu==='Comercial'?'is-open':''} ${activeGroup(['/clients','/opportunities','/subscriptions']) ? 'group-current' : ''}`} onMouseEnter={()=>setTouchMenu('Comercial')} onMouseLeave={()=>{if(!window.matchMedia('(hover: none)').matches)setTouchMenu('')}}>
             <button type="button" className="nav-trigger" aria-haspopup="true" aria-expanded={touchMenu==='Comercial'} onMouseDown={(event)=>event.preventDefault()} onClick={()=>{if(window.matchMedia('(hover: none)').matches)setTouchMenu('Comercial')}}>Comercial</button><div className="nav-menu">
               {can(role,roles.clients)&&navLink('/clients','Clientes')}
               {can(role,roles.opportunities)&&navLink('/opportunities','Oportunidades')}
               {can(role,roles.subscriptions)&&navLink('/subscriptions','Suscripciones')}
             </div>
-          </div>
+          </div>}
           <div className={`nav-group ${touchMenu==='Operación'?'is-open':''} ${activeGroup(['/projects','/service-contracts','/findings','/work-orders','/network','/iot']) ? 'group-current' : ''}`} onMouseEnter={()=>setTouchMenu('Operación')} onMouseLeave={()=>{if(!window.matchMedia('(hover: none)').matches)setTouchMenu('')}}>
             <button type="button" className="nav-trigger" aria-haspopup="true" aria-expanded={touchMenu==='Operación'} onMouseDown={(event)=>event.preventDefault()} onClick={()=>{if(window.matchMedia('(hover: none)').matches)setTouchMenu('Operación')}}>Operación</button><div className="nav-menu">
               {can(role,roles.projects)&&navLink('/projects','Proyectos')}
@@ -76,13 +76,13 @@ function Layout() {
               {can(role,roles.iot)&&navLink('/iot','Métricas IoT')}
             </div>
           </div>
-          <div className={`nav-group ${touchMenu==='Finanzas'?'is-open':''} ${activeGroup(['/billing','/procurement','/accounting']) ? 'group-current' : ''}`} onMouseEnter={()=>setTouchMenu('Finanzas')} onMouseLeave={()=>{if(!window.matchMedia('(hover: none)').matches)setTouchMenu('')}}>
+          {can(role,['ADMIN','MANAGEMENT','FINANCE','IT_OPERATIONS','PMO'])&&<div className={`nav-group ${touchMenu==='Finanzas'?'is-open':''} ${activeGroup(['/billing','/procurement','/accounting']) ? 'group-current' : ''}`} onMouseEnter={()=>setTouchMenu('Finanzas')} onMouseLeave={()=>{if(!window.matchMedia('(hover: none)').matches)setTouchMenu('')}}>
             <button type="button" className="nav-trigger" aria-haspopup="true" aria-expanded={touchMenu==='Finanzas'} onMouseDown={(event)=>event.preventDefault()} onClick={()=>{if(window.matchMedia('(hover: none)').matches)setTouchMenu('Finanzas')}}>Finanzas</button><div className="nav-menu">
               {can(role,roles.billing)&&navLink('/billing','Facturación y cartera')}
               {can(role,roles.procurement)&&navLink('/procurement','Compras y gastos')}
               {can(role,roles.accounting)&&navLink('/accounting','Contabilidad')}
             </div>
-          </div>
+          </div>}
           {(can(role,roles.hr)||role==='ADMIN')&&<div className={`nav-group ${touchMenu==='Administración'?'is-open':''} ${activeGroup(['/hr','/users']) ? 'group-current' : ''}`} onMouseEnter={()=>setTouchMenu('Administración')} onMouseLeave={()=>{if(!window.matchMedia('(hover: none)').matches)setTouchMenu('')}}>
             <button type="button" className="nav-trigger" aria-haspopup="true" aria-expanded={touchMenu==='Administración'} onMouseDown={(event)=>event.preventDefault()} onClick={()=>{if(window.matchMedia('(hover: none)').matches)setTouchMenu('Administración')}}>Administración</button><div className="nav-menu">
               {can(role,roles.hr)&&navLink('/hr','Equipo')}
