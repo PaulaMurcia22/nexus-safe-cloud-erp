@@ -34,11 +34,14 @@ async function askOllama(system: string, prompt: string) {
   try {
     response = await fetch(`${env.OLLAMA_BASE_URL.replace(/\/$/, '')}/api/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(env.OLLAMA_API_KEY ? { Authorization: `Bearer ${env.OLLAMA_API_KEY}` } : {}),
+      },
       body: JSON.stringify({
         model: env.OLLAMA_MODEL,
         stream: false,
-        options: { temperature: 0.2 },
+        options: { temperature: 0.2, num_predict: 300 },
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },
@@ -46,12 +49,15 @@ async function askOllama(system: string, prompt: string) {
       }),
       signal: AbortSignal.timeout(180_000),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      throw new HttpError(504, `El análisis con ${env.OLLAMA_MODEL} tardó demasiado. Intenta de nuevo; en este equipo el modelo corre por CPU.`);
+    }
     throw new HttpError(503, 'No fue posible conectar con Ollama. Confirma que esté iniciado y accesible desde el backend.');
   }
 
   if (!response.ok) {
-    throw new HttpError(503, `Ollama respondió con HTTP ${response.status}. Verifica que el modelo ${env.OLLAMA_MODEL} esté descargado.`);
+    throw new HttpError(503, `Ollama respondió con HTTP ${response.status}. Verifica la clave API, la URL y que el modelo ${env.OLLAMA_MODEL} esté disponible para tu cuenta.`);
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -129,7 +135,8 @@ export async function explainCapture(captureId: string) {
     'Analiza únicamente las métricas agregadas entregadas. No intentes inferir direcciones, contenido, usuarios, malware ni compromiso de seguridad.',
     'Separa observaciones medidas de hipótesis y no llames anomalía a un patrón sin una línea base para comparar.',
     'La captura es histórica y puntual, no telemetría en vivo. No se almacenó el contenido bruto de los payloads.',
-    'Responde con cuatro secciones breves: Resumen, Patrones observados, Qué conviene revisar y Límites del análisis.',
+    'Responde en máximo 100 palabras, con exactamente estas cuatro secciones: Resumen (una frase), Patrones observados (hasta dos viñetas), Qué conviene revisar (una viñeta), Límites del análisis (una frase).',
+    'No recomiendes inspeccionar contenido bruto ni inventes datos ausentes.',
   ].join(' ');
   const context = {
     capture: {

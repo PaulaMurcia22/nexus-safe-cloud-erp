@@ -10,6 +10,10 @@ coverage
 *.tmp
 *.backup
 data
+!data/
+data/*
+!data/Data_para_Proveedor_ERP.xlsx
+!data/Equipos_Monitoreo_Red_5196.xlsx
 backend/.env
 backend/dist
 frontend/dist

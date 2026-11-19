@@ -5,9 +5,14 @@ CREATE TABLE IF NOT EXISTS sites (
   name VARCHAR(120) NOT NULL, city VARCHAR(100) NOT NULL,
   CONSTRAINT ck_sites_code CHECK (code IN ('MEDELLIN','BOGOTA','REMOTE_SHARED'))
 );
-INSERT INTO sites(code,name,city) VALUES
- ('MEDELLIN','Medellín','Medellín'),('BOGOTA','Bogotá','Bogotá'),('REMOTE_SHARED','Remoto compartido','Remoto')
-ON CONFLICT(code) DO NOTHING;
+INSERT INTO sites(code,name,city)
+SELECT seed.code,seed.name,seed.city
+FROM (VALUES
+  ('MEDELLIN','Medellín','Medellín'),
+  ('BOGOTA','Bogotá','Bogotá'),
+  ('REMOTE_SHARED','Remoto compartido','Remoto')
+) AS seed(code,name,city)
+WHERE NOT EXISTS (SELECT 1 FROM sites existing WHERE existing.code=seed.code);
 
 CREATE TABLE IF NOT EXISTS network_assets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(), source_id VARCHAR(200), name VARCHAR(200) NOT NULL,

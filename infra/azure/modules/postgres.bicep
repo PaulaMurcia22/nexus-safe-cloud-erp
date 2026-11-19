@@ -6,6 +6,8 @@ param administratorPassword string
 param databaseName string
 param skuName string
 param version string
+param postgresSubnetId string
+param privateDnsZoneId string
 
 resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-preview' = {
   name: name
@@ -19,6 +21,11 @@ resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-preview' =
     backup: { backupRetentionDays: 7, geoRedundantBackup: 'Disabled' }
     highAvailability: { mode: 'Disabled' }
     storage: { storageSizeGB: 32, autoGrow: 'Enabled' }
+    network: {
+      delegatedSubnetResourceId: postgresSubnetId
+      privateDnsZoneArmResourceId: privateDnsZoneId
+      publicNetworkAccess: 'Disabled'
+    }
   }
 }
 

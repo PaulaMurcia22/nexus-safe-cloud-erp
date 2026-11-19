@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.49.2.45890",
-      "templateHash": "16122682323648579656"
+      "templateHash": "12539827764724056870"
     }
   },
   "parameters": {
@@ -28,6 +28,12 @@
       "defaultValue": "dev",
       "metadata": {
         "description": "Etiqueta de entorno."
+      }
+    },
+    "adminEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "Correo del administrador inicial del ERP."
       }
     },
     "backendImage": {
@@ -82,6 +88,9 @@
       "type": "string",
       "defaultValue": "16"
     },
+    "rabbitmqPassword": {
+      "type": "securestring"
+    },
     "backendMinReplicas": {
       "type": "int",
       "defaultValue": 1
@@ -104,11 +113,15 @@
     },
     "ollamaBaseUrl": {
       "type": "string",
-      "defaultValue": "http://localhost:11434"
+      "defaultValue": "https://ollama.com"
     },
     "ollamaModel": {
       "type": "string",
-      "defaultValue": "qwen2.5:3b"
+      "defaultValue": "gemma4:31b"
+    },
+    "ollamaApiKey": {
+      "type": "securestring",
+      "defaultValue": ""
     }
   },
   "variables": {
@@ -116,9 +129,82 @@
     "acrName": "[toLower(replace(format('{0}{1}', parameters('namePrefix'), variables('uniqueSuffix')), '-', ''))]",
     "logName": "[format('{0}-logs-{1}', parameters('namePrefix'), variables('uniqueSuffix'))]",
     "envName": "[format('{0}-{1}-aca-{2}', parameters('namePrefix'), parameters('environmentName'), variables('uniqueSuffix'))]",
-    "postgresName": "[toLower(format('{0}-pg-{1}', parameters('namePrefix'), variables('uniqueSuffix')))]"
+    "postgresName": "[toLower(format('{0}-pg-{1}', parameters('namePrefix'), variables('uniqueSuffix')))]",
+    "vnetName": "[format('{0}-vnet-{1}', parameters('namePrefix'), variables('uniqueSuffix'))]",
+    "privateDnsName": "private.postgres.database.azure.com"
   },
   "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.42.0.0/16"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "aca-infra",
+            "properties": {
+              "addressPrefix": "10.42.0.0/23",
+              "delegations": [
+                {
+                  "name": "container-apps",
+                  "properties": {
+                    "serviceName": "Microsoft.App/environments"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "postgres",
+            "properties": {
+              "addressPrefix": "10.42.2.0/28",
+              "delegations": [
+                {
+                  "name": "postgres",
+                  "properties": {
+                    "serviceName": "Microsoft.DBforPostgreSQL/flexibleServers"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('privateDnsName')]",
+      "location": "global"
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[format('{0}/{1}', variables('privateDnsName'), format('{0}-link', variables('vnetName')))]",
+      "location": "global",
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[format('{0}-acr-pull-{1}', parameters('namePrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]"
+    },
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
@@ -243,6 +329,61 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
+      "name": "acr-pull-role",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "registryName": {
+            "value": "[variables('acrName')]"
+          },
+          "principalId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-acr-pull-{1}', parameters('namePrefix'), variables('uniqueSuffix'))), '2023-01-31').principalId]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.49.2.45890",
+              "templateHash": "9141756187985827406"
+            }
+          },
+          "parameters": {
+            "registryName": {
+              "type": "string"
+            },
+            "principalId": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), parameters('principalId'), 'AcrPull')]",
+              "properties": {
+                "principalId": "[parameters('principalId')]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-acr-pull-{1}', parameters('namePrefix'), variables('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Resources/deployments', 'registry')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
       "name": "postgres",
       "properties": {
         "expressionEvaluationOptions": {
@@ -270,6 +411,12 @@
           },
           "version": {
             "value": "[parameters('postgresVersion')]"
+          },
+          "postgresSubnetId": {
+            "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), 'postgres')]"
+          },
+          "privateDnsZoneId": {
+            "value": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsName'))]"
           }
         },
         "template": {
@@ -279,7 +426,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.49.2.45890",
-              "templateHash": "16220647146764574659"
+              "templateHash": "14580087885553245364"
             }
           },
           "parameters": {
@@ -302,6 +449,12 @@
               "type": "string"
             },
             "version": {
+              "type": "string"
+            },
+            "postgresSubnetId": {
+              "type": "string"
+            },
+            "privateDnsZoneId": {
               "type": "string"
             }
           },
@@ -333,6 +486,11 @@
                 "storage": {
                   "storageSizeGB": 32,
                   "autoGrow": "Enabled"
+                },
+                "network": {
+                  "delegatedSubnetResourceId": "[parameters('postgresSubnetId')]",
+                  "privateDnsZoneArmResourceId": "[parameters('privateDnsZoneId')]",
+                  "publicNetworkAccess": "Disabled"
                 }
               }
             },
@@ -356,7 +514,12 @@
             }
           }
         }
-      }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones/virtualNetworkLinks', variables('privateDnsName'), format('{0}-link', variables('vnetName')))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsName'))]"
+      ]
     },
     {
       "type": "Microsoft.Resources/deployments",
@@ -376,6 +539,9 @@
           },
           "logWorkspaceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logs'), '2025-04-01').outputs.workspaceId.value]"
+          },
+          "infrastructureSubnetId": {
+            "value": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), 'aca-infra')]"
           }
         },
         "template": {
@@ -385,7 +551,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.49.2.45890",
-              "templateHash": "6551523145576539318"
+              "templateHash": "7429955981539840418"
             }
           },
           "parameters": {
@@ -397,6 +563,9 @@
             },
             "logWorkspaceId": {
               "type": "string"
+            },
+            "infrastructureSubnetId": {
+              "type": "string"
             }
           },
           "resources": [
@@ -406,11 +575,15 @@
               "name": "[parameters('name')]",
               "location": "[parameters('location')]",
               "properties": {
+                "vnetConfiguration": {
+                  "infrastructureSubnetId": "[parameters('infrastructureSubnetId')]",
+                  "internal": false
+                },
                 "appLogsConfiguration": {
                   "destination": "log-analytics",
                   "logAnalyticsConfiguration": {
                     "customerId": "[reference(parameters('logWorkspaceId'), '2023-09-01').customerId]",
-                    "sharedKey": "[reference(parameters('logWorkspaceId'), '2023-09-01', 'Full').sharedKeys.primarySharedKey]"
+                    "sharedKey": "[listKeys(parameters('logWorkspaceId'), '2023-09-01').primarySharedKey]"
                   }
                 }
               }
@@ -425,7 +598,8 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'logs')]"
+        "[resourceId('Microsoft.Resources/deployments', 'logs')]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ]
     },
     {
@@ -441,8 +615,14 @@
           "environmentId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'container-environment'), '2025-04-01').outputs.environmentId.value]"
           },
+          "location": {
+            "value": "[parameters('location')]"
+          },
           "registryLoginServer": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'registry'), '2025-04-01').outputs.loginServer.value]"
+          },
+          "acrPullIdentityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-acr-pull-{1}', parameters('namePrefix'), variables('uniqueSuffix')))]"
           },
           "backendImage": {
             "value": "[parameters('backendImage')]"
@@ -464,6 +644,12 @@
           },
           "postgresHost": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', 'postgres'), '2025-04-01').outputs.fullyQualifiedDomainName.value]"
+          },
+          "adminEmail": {
+            "value": "[parameters('adminEmail')]"
+          },
+          "rabbitmqPassword": {
+            "value": "[parameters('rabbitmqPassword')]"
           },
           "postgresDatabaseName": {
             "value": "[parameters('postgresDatabaseName')]"
@@ -491,6 +677,9 @@
           },
           "ollamaModel": {
             "value": "[parameters('ollamaModel')]"
+          },
+          "ollamaApiKey": {
+            "value": "[parameters('ollamaApiKey')]"
           }
         },
         "template": {
@@ -500,14 +689,20 @@
             "_generator": {
               "name": "bicep",
               "version": "0.49.2.45890",
-              "templateHash": "11721544691720659321"
+              "templateHash": "3462992895174452185"
             }
           },
           "parameters": {
             "environmentId": {
               "type": "string"
             },
+            "location": {
+              "type": "string"
+            },
             "registryLoginServer": {
+              "type": "string"
+            },
+            "acrPullIdentityId": {
               "type": "string"
             },
             "backendImage": {
@@ -530,6 +725,12 @@
             },
             "postgresHost": {
               "type": "string"
+            },
+            "adminEmail": {
+              "type": "string"
+            },
+            "rabbitmqPassword": {
+              "type": "securestring"
             },
             "postgresDatabaseName": {
               "type": "string"
@@ -557,123 +758,95 @@
             },
             "ollamaModel": {
               "type": "string"
+            },
+            "ollamaApiKey": {
+              "type": "securestring",
+              "defaultValue": ""
             }
           },
           "variables": {
             "backendName": "nexus-backend",
-            "frontendName": "nexus-frontend"
+            "frontendName": "nexus-frontend",
+            "rabbitmqName": "nexus-rabbitmq"
           },
           "resources": [
             {
               "type": "Microsoft.App/containerApps",
               "apiVersion": "2023-05-01",
-              "name": "[variables('backendName')]",
-              "location": "[resourceGroup().location]",
+              "name": "[variables('rabbitmqName')]",
+              "location": "[parameters('location')]",
               "properties": {
                 "managedEnvironmentId": "[parameters('environmentId')]",
                 "configuration": {
-                  "registries": [
-                    {
-                      "server": "[parameters('registryLoginServer')]",
-                      "identity": "system"
-                    }
-                  ],
                   "ingress": {
-                    "external": true,
-                    "targetPort": 3000,
-                    "transport": "http",
+                    "external": false,
+                    "targetPort": 5672,
+                    "transport": "tcp",
                     "allowInsecure": false
                   },
                   "secrets": [
                     {
-                      "name": "session-secret",
-                      "value": "[parameters('sessionSecret')]"
-                    },
-                    {
-                      "name": "postgres-password",
-                      "value": "[parameters('postgresAdminPassword')]"
-                    },
-                    {
-                      "name": "admin-password",
-                      "value": "[parameters('adminPassword')]"
-                    },
-                    {
-                      "name": "demo-users-password",
-                      "value": "[parameters('demoUsersPassword')]"
+                      "name": "rabbitmq-password",
+                      "value": "[parameters('rabbitmqPassword')]"
                     }
                   ]
                 },
                 "template": {
                   "containers": [
                     {
-                      "name": "[variables('backendName')]",
-                      "image": "[parameters('backendImage')]",
+                      "name": "[variables('rabbitmqName')]",
+                      "image": "rabbitmq:3.13-management",
                       "env": [
                         {
-                          "name": "NODE_ENV",
-                          "value": "production"
+                          "name": "RABBITMQ_DEFAULT_USER",
+                          "value": "nexus"
                         },
                         {
-                          "name": "PORT",
-                          "value": "3000"
-                        },
-                        {
-                          "name": "FRONTEND_ORIGIN",
-                          "value": "https://REEMPLAZAR_FRONTEND_HOST"
-                        },
-                        {
-                          "name": "SESSION_SECRET",
-                          "secretRef": "session-secret"
-                        },
-                        {
-                          "name": "DB_HOST",
-                          "value": "[parameters('postgresHost')]"
-                        },
-                        {
-                          "name": "DB_PORT",
-                          "value": "5432"
-                        },
-                        {
-                          "name": "DB_NAME",
-                          "value": "[parameters('postgresDatabaseName')]"
-                        },
-                        {
-                          "name": "DB_USER",
-                          "value": "[parameters('postgresAdminLogin')]"
-                        },
-                        {
-                          "name": "DB_PASSWORD",
-                          "secretRef": "postgres-password"
-                        },
-                        {
-                          "name": "ADMIN_EMAIL",
-                          "value": "REEMPLAZAR_ADMIN_EMAIL"
-                        },
-                        {
-                          "name": "ADMIN_PASSWORD",
-                          "secretRef": "admin-password"
-                        },
-                        {
-                          "name": "ADMIN_NAME",
-                          "value": "Administrador"
-                        },
-                        {
-                          "name": "DEMO_USERS_PASSWORD",
-                          "secretRef": "demo-users-password"
-                        },
-                        {
-                          "name": "LOAD_DEMO_DATA",
-                          "value": "[if(parameters('enableDemoData'), 'true', 'false')]"
-                        },
-                        {
-                          "name": "OLLAMA_BASE_URL",
-                          "value": "[parameters('ollamaBaseUrl')]"
-                        },
-                        {
-                          "name": "OLLAMA_MODEL",
-                          "value": "[parameters('ollamaModel')]"
+                          "name": "RABBITMQ_DEFAULT_PASS",
+                          "secretRef": "rabbitmq-password"
                         }
                       ],
+                      "resources": {
+                        "cpu": "[json('0.25')]",
+                        "memory": "0.5Gi"
+                      }
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": 1,
+                    "maxReplicas": 1
+                  }
+                }
+              }
+            },
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2023-05-01",
+              "name": "[variables('backendName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "managedEnvironmentId": "[parameters('environmentId')]",
+                "configuration": {
+                  "registries": [
+                    {
+                      "server": "[parameters('registryLoginServer')]",
+                      "identity": "[parameters('acrPullIdentityId')]"
+                    }
+                  ],
+                  "ingress": {
+                    "external": false,
+                    "targetPort": 3000,
+                    "transport": "http",
+                    "allowInsecure": false
+                  },
+                  "secrets": "[concat(createArray(createObject('name', 'session-secret', 'value', parameters('sessionSecret')), createObject('name', 'postgres-password', 'value', parameters('postgresAdminPassword')), createObject('name', 'admin-password', 'value', parameters('adminPassword')), createObject('name', 'demo-users-password', 'value', parameters('demoUsersPassword')), createObject('name', 'rabbitmq-url', 'value', format('amqp://nexus:{0}@nexus-rabbitmq:5672', parameters('rabbitmqPassword')))), if(empty(parameters('ollamaApiKey')), createArray(), createArray(createObject('name', 'ollama-api-key', 'value', parameters('ollamaApiKey')))))]"
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "[variables('backendName')]",
+                      "image": "[parameters('backendImage')]",
+                      "env": "[concat(createArray(createObject('name', 'NODE_ENV', 'value', 'production'), createObject('name', 'PORT', 'value', '3000'), createObject('name', 'FRONTEND_ORIGIN', 'value', format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('frontendName')), '2023-05-01').configuration.ingress.fqdn)), createObject('name', 'SESSION_SECRET', 'secretRef', 'session-secret'), createObject('name', 'DB_HOST', 'value', parameters('postgresHost')), createObject('name', 'DB_PORT', 'value', '5432'), createObject('name', 'DB_NAME', 'value', parameters('postgresDatabaseName')), createObject('name', 'DB_USER', 'value', parameters('postgresAdminLogin')), createObject('name', 'DB_PASSWORD', 'secretRef', 'postgres-password'), createObject('name', 'ADMIN_EMAIL', 'value', parameters('adminEmail')), createObject('name', 'ADMIN_PASSWORD', 'secretRef', 'admin-password'), createObject('name', 'ADMIN_NAME', 'value', 'Administrador'), createObject('name', 'DEMO_USERS_PASSWORD', 'secretRef', 'demo-users-password'), createObject('name', 'LOAD_DEMO_DATA', 'value', if(parameters('enableDemoData'), 'true', 'false')), createObject('name', 'OLLAMA_BASE_URL', 'value', parameters('ollamaBaseUrl')), createObject('name', 'OLLAMA_MODEL', 'value', parameters('ollamaModel')), createObject('name', 'RABBITMQ_ENABLED', 'value', 'true'), createObject('name', 'RABBITMQ_URL', 'secretRef', 'rabbitmq-url')), if(empty(parameters('ollamaApiKey')), createArray(), createArray(createObject('name', 'OLLAMA_API_KEY', 'secretRef', 'ollama-api-key'))))]",
                       "resources": {
                         "cpu": "[json('0.5')]",
                         "memory": "1Gi"
@@ -697,14 +870,20 @@
                 }
               },
               "identity": {
-                "type": "SystemAssigned"
-              }
+                "type": "SystemAssigned, UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('acrPullIdentityId'))]": {}
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/containerApps', variables('frontendName'))]"
+              ]
             },
             {
               "type": "Microsoft.App/containerApps",
               "apiVersion": "2023-05-01",
               "name": "[variables('frontendName')]",
-              "location": "[resourceGroup().location]",
+              "location": "[parameters('location')]",
               "properties": {
                 "managedEnvironmentId": "[parameters('environmentId')]",
                 "configuration": {
@@ -717,7 +896,7 @@
                   "registries": [
                     {
                       "server": "[parameters('registryLoginServer')]",
-                      "identity": "system"
+                      "identity": "[parameters('acrPullIdentityId')]"
                     }
                   ]
                 },
@@ -739,7 +918,10 @@
                 }
               },
               "identity": {
-                "type": "SystemAssigned"
+                "type": "SystemAssigned, UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('acrPullIdentityId'))]": {}
+                }
               }
             }
           ],
@@ -748,9 +930,9 @@
               "type": "string",
               "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('frontendName')), '2023-05-01').configuration.ingress.fqdn)]"
             },
-            "backendUrl": {
+            "backendInternalFqdn": {
               "type": "string",
-              "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', variables('backendName')), '2023-05-01').configuration.ingress.fqdn)]"
+              "value": "[reference(resourceId('Microsoft.App/containerApps', variables('backendName')), '2023-05-01').configuration.ingress.fqdn]"
             },
             "frontendPrincipalId": {
               "type": "string",
@@ -764,117 +946,11 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-acr-pull-{1}', parameters('namePrefix'), variables('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Resources/deployments', 'acr-pull-role')]",
         "[resourceId('Microsoft.Resources/deployments', 'container-environment')]",
         "[resourceId('Microsoft.Resources/deployments', 'postgres')]",
         "[resourceId('Microsoft.Resources/deployments', 'registry')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "backend-acr-pull",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "registryName": {
-            "value": "[variables('acrName')]"
-          },
-          "principalId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'container-apps'), '2025-04-01').outputs.backendPrincipalId.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.49.2.45890",
-              "templateHash": "9141756187985827406"
-            }
-          },
-          "parameters": {
-            "registryName": {
-              "type": "string"
-            },
-            "principalId": {
-              "type": "string"
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName'))]",
-              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), parameters('principalId'), 'AcrPull')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "principalType": "ServicePrincipal",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
-              }
-            }
-          ]
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'container-apps')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "frontend-acr-pull",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "registryName": {
-            "value": "[variables('acrName')]"
-          },
-          "principalId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'container-apps'), '2025-04-01').outputs.frontendPrincipalId.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.49.2.45890",
-              "templateHash": "9141756187985827406"
-            }
-          },
-          "parameters": {
-            "registryName": {
-              "type": "string"
-            },
-            "principalId": {
-              "type": "string"
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName'))]",
-              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', parameters('registryName')), parameters('principalId'), 'AcrPull')]",
-              "properties": {
-                "principalId": "[parameters('principalId')]",
-                "principalType": "ServicePrincipal",
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
-              }
-            }
-          ]
-        }
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'container-apps')]"
       ]
     }
   ],
@@ -895,9 +971,9 @@
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Resources/deployments', 'container-apps'), '2025-04-01').outputs.frontendUrl.value]"
     },
-    "backendUrl": {
+    "backendInternalFqdn": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'container-apps'), '2025-04-01').outputs.backendUrl.value]"
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'container-apps'), '2025-04-01').outputs.backendInternalFqdn.value]"
     }
   }
 }

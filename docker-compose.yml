@@ -39,6 +39,7 @@ services:
       LOAD_DEMO_DATA: ${LOAD_DEMO_DATA:-true}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
       RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
       RABBITMQ_URL: ${RABBITMQ_URL:-amqp://nexus:rabbitmq-local-only@rabbitmq:5672}
       RABBITMQ_MAX_CONSUMER_RETRIES: ${RABBITMQ_MAX_CONSUMER_RETRIES:-3}

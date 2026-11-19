@@ -1,109 +1,142 @@
-# Propuesta Azure — Nexus Safe-Cloud
+# Despliegue de Nexus Safe-Cloud en Azure
 
-Esta carpeta contiene infraestructura Bicep propuesta. No aprovisiona recursos por sí sola y no sustituye la validación en una suscripción Azure autorizada.
+Guía para publicar el entorno de demostración con Azure Container Apps, Azure Container Registry, PostgreSQL Flexible Server y RabbitMQ. El despliegue crea recursos facturables. Revisa el saldo de Azure for Students y estima los costos en la [calculadora de Azure](https://azure.microsoft.com/pricing/calculator/) antes de crear recursos.
 
-La solución conserva el monolito modular actual: frontend y backend son imágenes separadas, pero no se presentan como microservicios independientes.
+## Arquitectura y costos
 
-## Arquitectura objetivo
+- Frontend público en Container Apps. Nginx entrega la SPA y reenvía `/api/*` al ingress interno `nexus-backend` (puerto 80; Container Apps enruta al puerto 3000 del contenedor), por lo que el navegador usa la misma URL y no requiere conocer una URL pública del backend.
+- Backend y RabbitMQ son internos al entorno de Container Apps. RabbitMQ usa AMQP 5672 y su usuario/contraseña se configura como secreto.
+- PostgreSQL Flexible Server queda en una subred delegada, con acceso público deshabilitado y DNS privado enlazado a la VNet.
+- ACR usa SKU Basic. Las imágenes se publican con una etiqueta versionada; Container Apps usa identidades administradas para descargarlas.
+- El backend conserva una réplica mínima para que la API responda sin esperar un arranque en frío; frontend puede escalar a cero y RabbitMQ queda en una réplica. El backend y RabbitMQ pueden generar costo mientras permanecen activos. RabbitMQ usa almacenamiento efímero: esta configuración sirve para demo, no para mensajes que deban sobrevivir a una recreación. PostgreSQL mantiene el outbox para reintentar la publicación.
 
-```mermaid
-flowchart TB
-  User[Usuarios y sedes] --> HTTPS[HTTPS / DNS / gateway futuro]
-  HTTPS --> Front[Azure Container App - Frontend]
-  HTTPS --> Back[Azure Container App - Backend]
-  Front -->|VITE_API_URL / HTTPS| Back
-  Back -->|5432 / TLS| PG[(PostgreSQL Flexible Server)]
-  Back --> Logs[Log Analytics]
-  Front --> Logs
-  ACR[Azure Container Registry] -->|Managed Identity + AcrPull| Front
-  ACR -->|Managed Identity + AcrPull| Back
-```
+PostgreSQL `Standard_B1ms` y 32 GiB de almacenamiento tienen un costo base incluso sin tráfico. Container Apps Consumption ofrece una cuota mensual gratuita por suscripción, pero RabbitMQ siempre encendido y los recursos de red/logs pueden generar cargos. Azure for Students acredita USD 100 por 12 meses; revisa Education Hub y crea alertas de presupuesto (las alertas no detienen automáticamente los recursos).
 
-## ACR e imágenes
+## Requisitos
 
-Cada Container App usa una identidad administrada del sistema. `main.bicep` asigna a ambas identidades el rol integrado `AcrPull`; el usuario administrador del ACR permanece deshabilitado.
+- Azure CLI con extensión Bicep, Docker Desktop y sesión iniciada en la suscripción correcta.
+- Permisos para crear grupos de recursos, ACR, Container Apps, red virtual y PostgreSQL Flexible Server.
+- Región con disponibilidad de todos esos servicios y cuota suficiente.
+- Correo del administrador inicial y contraseñas únicas. No guardes secretos en Git ni en el archivo `.bicepparam`.
 
-Flujo futuro: construir las imágenes con los Dockerfiles existentes, publicarlas con tags inmutables, pasar las referencias mediante `backendImage` y `frontendImage`, y actualizar la etiqueta para crear una nueva revisión.
+## 1. Seleccionar suscripción y crear el grupo
 
-Esta relación está declarada en Bicep, pero no se ha probado contra Azure.
-
-## Topología y conectividad
-
-La plantilla usa ingress HTTPS público de Container Apps para frontend y backend. El frontend llama al backend mediante la URL compilada en `VITE_API_URL`; el backend utiliza `FRONTEND_ORIGIN` para CORS.
-
-El backend debe usar el FQDN de PostgreSQL Flexible Server:
-
-```text
-DB_HOST=<FQDN de PostgreSQL Flexible Server>
-DB_PORT=5432
-DB_NAME=nexuserpm
-DB_USER=nexusadmin
-DB_PASSWORD=<secreto>
-```
-
-La plantilla todavía no crea VNet, subred delegada, Private DNS Zone, Private Endpoint ni reglas de firewall. Por eso la conectividad PostgreSQL no está probada. Antes de producción debe elegirse acceso público restringido o conectividad privada mediante VNet compatible con Container Apps.
-
-El gateway o balanceador externo del otro integrante queda fuera de esta plantilla.
-
-## Variables y secretos
-
-El backend conserva las variables reales del código: `NODE_ENV`, `PORT`, `FRONTEND_ORIGIN`, `SESSION_SECRET`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME`, `DEMO_USERS_PASSWORD`, `LOAD_DEMO_DATA`, `OLLAMA_BASE_URL` y `OLLAMA_MODEL`.
-
-`VITE_API_URL` se incorpora durante el build del frontend; no es una variable dinámica del contenedor Nginx. Las contraseñas y `SESSION_SECRET` se reciben como parámetros seguros y no deben almacenarse en Git ni en las imágenes. Para producción se recomienda Key Vault y un pipeline con federación de identidad.
-
-## Escalabilidad
-
-El backend tiene una regla HTTP basada en 50 solicitudes concurrentes por réplica, con mínimo 1 y máximo 2 réplicas en desarrollo. Es una configuración declarada, no una medición de capacidad.
-
-El frontend es contenido estático servido por Nginx. Se mantiene entre 1 y 2 réplicas como margen operativo, pero no se ha definido una regla específica de carga. Los posibles cuellos de botella son PostgreSQL, el pool de conexiones del backend y las operaciones costosas de IA.
-
-Los límites deben ajustarse después de pruebas de carga y observación de CPU, memoria, latencia y conexiones de base de datos.
-
-## Resiliencia y recuperación
-
-La propuesta declara backups de PostgreSQL con retención de 7 días, auto-growth de almacenamiento y logs centralizados. No declara ni prueba alta disponibilidad zonal, backup georredundante, failover entre regiones, restauración automatizada, RTO/RPO medidos, alertas, runbooks ni recuperación ante pérdida del entorno.
-
-`highAvailability` y `geoRedundantBackup` permanecen deshabilitados en desarrollo para no asumir costos o disponibilidad no autorizados.
-
-## Inicialización de PostgreSQL
-
-`database/docker-init/01_init_schema.sql` puede reutilizarse con `psql`, pero sus rutas `/opt/nexus-sql/...` corresponden al montaje Docker. En Azure debe ejecutarse desde un job, pipeline o máquina autorizada que monte o copie `database/scripts/` en esa ruta. No debe ejecutarse al iniciar cada réplica.
-
-## Ollama, RabbitMQ y balanceador
-
-Ollama no debe usar `http://localhost:11434` desde Azure para alcanzar otro contenedor. Requiere un servicio separado y una URL accesible desde el backend; no se incluye aquí. RabbitMQ y el balanceador de carga tampoco se implementan en esta plantilla.
-
-## Validación sin despliegue
+Ejecuta desde la raíz del repositorio en PowerShell:
 
 ```powershell
-az bicep build --file infra/azure/main.bicep
+az login
+az account list --output table
+az account set --subscription "<ID-o-nombre-de-la-suscripción>"
+az account show --query "{name:name,id:id,state:state}" --output table
+
+$location = "brazilsouth"
+$resourceGroup = "nexus-student-dev"
+az group create --name $resourceGroup --location $location
 ```
 
-Validación contra un grupo existente, sin crear recursos:
+## 2. Crear ACR e identificar sus imágenes
+
+El template de bootstrap y el principal calculan el mismo nombre determinista para ACR. Despliega primero el registro para poder publicar las imágenes antes de crear las Container Apps:
 
 ```powershell
-az deployment group validate `
-  --resource-group <grupo-existente> `
-  --template-file infra/azure/main.bicep `
-  --parameters infra/azure/main.dev.bicepparam `
-  --parameters postgresAdminPassword='<valor-local>' `
-    sessionSecret='<secreto-local-de-32-caracteres>' `
-    adminPassword='<valor-local>' `
-    demoUsersPassword='<valor-local>'
+az deployment group create `
+  --name nexus-acr-bootstrap `
+  --resource-group $resourceGroup `
+  --template-file infra/azure/acr-bootstrap.bicep `
+  --parameters namePrefix=nexus-dev location=$location
+
+$registry = az deployment group show `
+  --name nexus-acr-bootstrap `
+  --resource-group $resourceGroup `
+  --query properties.outputs.loginServer.value `
+  --output tsv
+$acr = $registry.Split('.')[0]
+az acr login --name $acr
 ```
 
-No ejecutar `az deployment group create` en esta etapa.
+Elige una etiqueta nueva e inmutable por cada publicación. Construye ambos contextos desde sus respectivas carpetas:
 
-## Estado frente a RT2
+```powershell
+$tag = "dev-20261118"
+docker build -f backend/Dockerfile -t "$registry/nexus-backend:$tag" .
+docker push "$registry/nexus-backend:$tag"
+docker build --build-arg "VITE_API_URL=/api" -t "$registry/nexus-frontend:$tag" ./frontend
+docker push "$registry/nexus-frontend:$tag"
+```
 
-| Componente | Estado |
-|---|---|
-| Docker Compose local | Implementado y probado previamente |
-| ACR | Declarado; acceso por identidad administrada añadido, pendiente de validar en Azure |
-| Container Apps | Declarado; despliegue no probado |
-| PostgreSQL administrado | Declarado; red y conectividad pendientes |
-| HTTPS e ingress | Declarados; dominio y pruebas pendientes |
-| Escalamiento | Declarado; no probado bajo carga |
-| Logs | Declarados; alertas y consultas pendientes |
-| HA, failover y restore | Propuestos, no implementados ni probados |
-| RabbitMQ y balanceador | Fuera de alcance hasta recibir integración validada |
+La configuración de Nginx en `frontend/nginx.conf` remite `/api/` al ingress interno `nexus-backend` por el puerto 80. Container Apps enruta las solicitudes al puerto 3000 del contenedor. No cambies `VITE_API_URL=/api` por una URL localhost ni por un FQDN de backend.
+
+## 3. Completar parámetros no secretos
+
+Abre `infra/azure/main.dev.bicepparam` y actualiza `backendImage` y `frontendImage` con el registro y las etiquetas que acabas de publicar. Sustituye también el correo del administrador si se define como parámetro requerido por la plantilla. Ejemplo:
+
+```bicep
+param backendImage = 'nexusdevabc123.azurecr.io/nexus-backend:dev-20261118'
+param frontendImage = 'nexusdevabc123.azurecr.io/nexus-frontend:dev-20261118'
+param adminEmail = 'admin@ejemplo.com'
+```
+
+Confirma que `enableDemoData = true` para cargar registros sintéticos; la imagen backend incluye los Excel de topología y catálogo que alimentan la semilla. El backend mantiene mínimo `1` y máximo `1` para evitar que la migración/semilla de arranque se repita al escalar a cero; el frontend mantiene mínimo `0` y máximo `1`.
+
+## 4. Validar y desplegar
+
+Desde la raíz del repositorio, ejecuta primero la validación. Por defecto, el script pide los cinco secretos de forma oculta. Si quieres conservar las credenciales locales del `.env`, usa `-UseLocalEnv`: toma las contraseñas existentes y genera claves aleatorias para RabbitMQ y para PostgreSQL cuando la contraseña local no cumple los requisitos de Azure. Los secretos solo se pasan al proceso mediante variables de entorno y se limpian al terminar.
+
+```powershell
+./infra/azure/deploy.ps1 -Mode Validate -ResourceGroup $resourceGroup -UseLocalEnv
+```
+
+Cuando la validación sea exitosa y hayas revisado el plan/costos, crea los recursos:
+
+```powershell
+./infra/azure/deploy.ps1 -Mode Deploy -ResourceGroup $resourceGroup -UseLocalEnv
+```
+
+El template configura PostgreSQL privado y las Container Apps en la misma VNet. Al iniciar la revisión del backend, se conecta a PostgreSQL con TLS, aplica el esquema, importa los Excel incluidos en la imagen y carga la semilla sintética. Revisa los logs de `nexus-backend` para confirmar que terminaron la migración, la importación y la semilla. Las revisiones nuevas vuelven a ejecutar el arranque; verifica los logs después de cada actualización. Consulta las salidas del despliegue con:
+
+```powershell
+az deployment group show --name nexus-dev --resource-group $resourceGroup --query properties.outputs --output json
+```
+
+Abre `frontendUrl` para ingresar. El backend no tiene endpoint público; usa el proxy `/api` del frontend. La primera petición puede tardar mientras arranca el frontend, que puede escalar a cero.
+
+## Base de datos y usuarios
+
+En Azure, `AUTO_MIGRATE_DB=true` crea el esquema con TLS al iniciar y `enableDemoData=true` importa los Excel incluidos en la imagen y carga la semilla sintética. Docker Compose local mantiene desactivada la migración automática. Verifica la salud de la API y el login después de desplegar.
+
+El PostgreSQL usa red privada: `psql` desde tu PC no tendrá ruta directa al servidor. Ejecuta el SQL desde una máquina conectada a la VNet o desde un job/contendor temporal dentro del entorno. Aplica `database/docker-init/01_init_schema.sql` y luego carga los datos de demo con un proceso de migración seguro. Si vas a mover la base Docker actual, crea primero un `pg_dump`, restaura en el servidor destino y verifica datos antes de borrar el origen. No abras la base a `0.0.0.0/0` para facilitar la migración.
+
+## Actualizaciones
+
+Para publicar una versión, cambia `$tag`, reconstruye y sube las imágenes como en el paso 2, y actualiza `backendImage` y `frontendImage` en `infra/azure/main.dev.bicepparam`. Usa siempre tags inmutables por versión para evitar que una revisión siga sirviendo una imagen cacheada. Después valida y aplica la plantilla:
+
+```powershell
+./infra/azure/deploy.ps1 -Mode Validate -ResourceGroup $resourceGroup -UseLocalEnv
+./infra/azure/deploy.ps1 -Mode Deploy -ResourceGroup $resourceGroup -UseLocalEnv
+```
+
+El despliegue crea nuevas revisiones. Confirma que frontend y backend estén `Healthy`; comprueba la web y los endpoints `/api/health` y `/api/health/db`. Revisa los logs del backend para validar el arranque, importación y semilla.
+
+### Configurar Ollama Cloud
+
+El backend usa `OLLAMA_BASE_URL=https://ollama.com` y envía la clave como `Authorization: Bearer ...`. En Azure Portal, abre **Container Apps → nexus-backend → Secrets** y crea o actualiza `ollama-api-key` con la clave cruda (sin el texto `Bearer`). En **Containers → Environment variables**, configura `OLLAMA_API_KEY` como referencia a ese secreto, `OLLAMA_BASE_URL` como `https://ollama.com` y `OLLAMA_MODEL` con un modelo disponible en la cuenta. Guarda una revisión nueva para que el proceso lea el secreto actualizado. El script `deploy.ps1` no pide la clave de Ollama; después de desplegar con ese script, confirma que el secreto y la referencia sigan configurados.
+
+- HTTP 401: Ollama rechazó la API key.
+- HTTP 402: revisa créditos, uso y facturación en [Ollama Settings](https://ollama.com/settings) y los [precios de Ollama Cloud](https://ollama.com/pricing).
+- Revisa el estado de la revisión y los logs del backend después de cambiar el secreto. No guardes la clave en Git ni en `main.dev.bicepparam`.
+
+## Control de gasto y limpieza
+
+- Configura una alerta de presupuesto y revisa periódicamente Cost Management.
+- Detén PostgreSQL cuando no uses la demo; el almacenamiento sigue cobrando.
+- RabbitMQ requiere una réplica activa y tiene almacenamiento no persistente en esta configuración.
+- No añadas alta disponibilidad, NAT Gateway, logs excesivos ni servicios adicionales al presupuesto de USD 100 sin estimar su costo.
+- Al terminar, exporta los datos necesarios y elimina el grupo de recursos. La eliminación es irreversible:
+
+```powershell
+az group delete --name $resourceGroup --yes --no-wait
+```
+
+## Límites de esta configuración
+
+Es un despliegue de demostración: RabbitMQ no conserva mensajes al reemplazar la réplica; no hay dominio propio ni HTTPS personalizado; y la red privada impide administrar PostgreSQL directamente desde una PC fuera de la VNet. Antes de usar datos reales, agrega persistencia y recuperación de RabbitMQ, configura backups y valida seguridad/costos en la suscripción.

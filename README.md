@@ -100,6 +100,8 @@ ollama pull qwen2.5:3b
 
 Mantén Ollama iniciado mientras uses el asistente. Si usas otro modelo, actualiza `OLLAMA_MODEL` en `backend/.env`; si Ollama está en otro host accesible desde el backend, configura `OLLAMA_BASE_URL` para que apunte a un servidor de confianza. Para IoT, el backend envía estadísticas agregadas; no envía IP, nombre del archivo ni contenido bruto de paquetes. La respuesta no detecta actividad en vivo ni confirma incidentes. La interfaz muestra el análisis IoT a ADMIN, MANAGEMENT, IT_OPERATIONS y PMO. La IA no modifica datos del ERP; revisa sus sugerencias antes de actuar.
 
+Para usar **Ollama Cloud** desde un backend publicado, configura `OLLAMA_BASE_URL=https://ollama.com`, un `OLLAMA_MODEL` disponible para tu cuenta y `OLLAMA_API_KEY`. El backend envía la clave como `Authorization: Bearer ...`; guarda únicamente la clave sin el prefijo `Bearer`, nunca en el frontend ni en Git. En Azure Container Apps, agrega el secreto `ollama-api-key` y vincula `OLLAMA_API_KEY` a ese secreto. Después crea una revisión nueva para que el contenedor lea el secreto. El script `infra/azure/deploy.ps1` no solicita la clave de Ollama, así que vuelve a vincularla después de un despliegue hecho con ese script. Un HTTP 401 indica que Ollama rechazó la clave; un HTTP 402 indica que debes revisar el uso, créditos o facturación de la cuenta de Ollama. Ollama Cloud cobra por uso y algunos modelos requieren créditos: revisa [uso y créditos](https://ollama.com/settings) y los [precios](https://ollama.com/pricing). Consulta la [guía oficial de autenticación de Ollama](https://docs.ollama.com/api/authentication).
+
 ### Paso 4: crea la base de datos vacía
 
 La base debe llamarse exactamente `nexuserpm`. La contraseña que se solicite aquí es la de PostgreSQL.
@@ -263,6 +265,7 @@ Los Excel de red corresponden a inventario/catálogos técnicos y no acreditan c
 - [Documentación de API](docs/api/README.md)
 - [Dominio de red](docs/architecture/network-domain.md)
 - [Guion de demostración](docs/mvp/guion-demo.md)
+- [Despliegue y actualizaciones en Azure](infra/azure/README.md)
 
 ## Ejecución con Docker
 
@@ -303,3 +306,25 @@ npm test --prefix backend
 ```
 
 Las pruebas que requieren PostgreSQL deben ejecutarse en una base de prueba separada; nunca sobre una base con información que quieras conservar.
+
+## Subir cambios a Git
+
+Desde la carpeta del repositorio, revisa qué archivos van a incluirse. Comprueba que no haya `.env`, claves API, contraseñas ni otros secretos:
+
+```text
+git status
+git diff --check
+```
+
+Agrega los cambios revisados, vuelve a comprobar el área preparada, crea un commit y sube tu rama:
+
+```text
+git add -A
+git diff --cached --check
+git diff --cached
+git commit -m "Preparar despliegue Azure de Nexus Safe-Cloud"
+git branch --show-current
+git push origin nombre-de-tu-rama
+```
+
+Reemplaza `nombre-de-tu-rama` por la rama que mostró `git branch --show-current`. Si no quieres subir todos los cambios, usa `git add <archivo>` en lugar de `git add -A`. Nunca incluyas archivos `.env`, claves API ni contraseñas.
